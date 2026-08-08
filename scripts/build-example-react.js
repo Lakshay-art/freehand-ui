@@ -9,7 +9,7 @@ await esbuild.build({
   platform: "browser",
   target: ["es2020"],
   alias: {
-    "freehand-ui/react": "./dist/react.js",
+    "@aznabee/freehand-ui/react": "./dist/react.js",
   },
 });
 

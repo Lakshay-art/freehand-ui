@@ -1,6 +1,6 @@
 import { createElement, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import Doodle, { useDoodle } from "freehand-ui/react";
+import Doodle, { useDoodle } from "@aznabee/freehand-ui/react";
 
 function DuoCard() {
   return (

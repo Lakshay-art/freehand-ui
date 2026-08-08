@@ -7,13 +7,13 @@ Wrap any existing web element with a beautiful, responsive, hand-drawn doodle la
 ## Install
 
 ```bash
-npm install freehand-ui
+npm install @aznabee/freehand-ui
 ```
 
 ## Basic usage
 
 ```javascript
-import { doodle } from "freehand-ui";
+import { doodle } from "@aznabee/freehand-ui";
 
 doodle(document.querySelector(".card"));
 // or
@@ -25,7 +25,7 @@ This immediately draws a hand-drawn border around the element and keeps it align
 ## React / Next.js
 
 ```jsx
-import Doodle from "freehand-ui/react";
+import Doodle from "@aznabee/freehand-ui/react";
 
 <Doodle note="start chat" strokeWidth={2}>
   <Button />
@@ -71,7 +71,7 @@ drawn as a pill.
 For an element you already hold a ref to, skip the wrapper:
 
 ```jsx
-import { useDoodle } from "freehand-ui/react";
+import { useDoodle } from "@aznabee/freehand-ui/react";
 
 function Card() {
   const ref = useRef(null);
