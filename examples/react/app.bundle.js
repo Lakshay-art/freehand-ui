@@ -21728,14 +21728,19 @@ var DEFAULT_OPTIONS = {
   color: "#ffffff",
   strokeWidth: 1.5,
   roughness: 1.5,
-  padding: 8,
+  // The frame traces the element's own edge. Raise this to stand it off.
+  padding: 0,
   radius: null,
   opacity: 0.9,
   children: null,
   note: null,
   arrow: false,
   decorations: false,
-  addBreaks: false
+  addBreaks: false,
+  /** Override the handwriting stack, e.g. a next/font CSS variable. */
+  fontFamily: null,
+  /** Fetch Caveat when the page has not provided it. */
+  autoLoadFont: true
 };
 function resolveElement(target) {
   if (!target) return null;
@@ -21957,7 +21962,7 @@ function annotationAnchor(position, rect, offset = 12) {
   return point;
 }
 var SVG_NS = "http://www.w3.org/2000/svg";
-var HANDWRITTEN_FONT = '"Caveat", "Kalam", "Patrick Hand", cursive';
+var HANDWRITTEN_FONT = '"Caveat", "Kalam", "Patrick Hand", "Bradley Hand", "Segoe Script", "Comic Sans MS", cursive';
 var NOTE_FONT_SIZE = 19;
 function clearSvg(svg) {
   while (svg.firstChild) {
@@ -22436,7 +22441,7 @@ function createNoteText(svg, text, style) {
   textEl.setAttribute("fill", style.color);
   textEl.setAttribute("opacity", String(style.opacity));
   textEl.setAttribute("font-size", String(fontSize));
-  textEl.setAttribute("font-family", HANDWRITTEN_FONT);
+  textEl.setAttribute("font-family", style.fontFamily || HANDWRITTEN_FONT);
   textEl.setAttribute("font-weight", "600");
   textEl.setAttribute("letter-spacing", "0.4");
   textEl.setAttribute("text-anchor", "start");
@@ -23004,6 +23009,25 @@ function renderDecorations(svg, rect, decorationOptions, style, seed, context = 
     renderCornerMarks(svg, rect, types, budget, style, random, hasRoom);
   }
 }
+var FONT_NAME = "Caveat";
+var FONT_HREF = "https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&display=swap";
+var MARKER = "data-freehand-font";
+var requested = false;
+function ensureHandwrittenFont() {
+  if (requested) return;
+  if (typeof document === "undefined" || !document.head) return;
+  requested = true;
+  try {
+    if (document.fonts?.check?.(`600 19px "${FONT_NAME}"`)) return;
+  } catch {
+  }
+  if (document.querySelector(`link[${MARKER}]`)) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = FONT_HREF;
+  link.setAttribute(MARKER, "");
+  document.head.appendChild(link);
+}
 var instances = /* @__PURE__ */ new WeakMap();
 function localViewport(overlayRect, inset = 8) {
   const width = window.innerWidth || document.documentElement.clientWidth || 0;
@@ -23054,7 +23078,12 @@ var DoodleOverlay = class {
     }
     window.addEventListener("resize", this.onResize, { passive: true });
     this.scrollTargets.push({ target: window, type: "resize" });
-    document.fonts?.ready?.then(() => this.scheduleUpdate()).catch(() => {
+    if (this.options.note && this.options.autoLoadFont && !this.options.fontFamily) {
+      ensureHandwrittenFont();
+    }
+    this.onFontsLoaded = () => this.scheduleUpdate();
+    document.fonts?.addEventListener?.("loadingdone", this.onFontsLoaded);
+    document.fonts?.ready?.then(this.onFontsLoaded).catch(() => {
     });
     this.update();
   }
@@ -23097,7 +23126,13 @@ var DoodleOverlay = class {
     this.svg.style.width = `${overlayRect.width}px`;
     this.svg.style.height = `${overlayRect.height}px`;
     const strokeStyle = { color, strokeWidth, roughness, opacity };
-    const noteStyle = { color, opacity, strokeWidth, roughness };
+    const noteStyle = {
+      color,
+      opacity,
+      strokeWidth,
+      roughness,
+      fontFamily: this.options.fontFamily
+    };
     const noteGroups = [];
     const noteLayout = {
       viewport: localViewport(overlayRect),
@@ -23172,6 +23207,10 @@ var DoodleOverlay = class {
       this.mutationObserver.disconnect();
       this.mutationObserver = null;
     }
+    if (this.onFontsLoaded) {
+      document.fonts?.removeEventListener?.("loadingdone", this.onFontsLoaded);
+      this.onFontsLoaded = null;
+    }
     for (const { target, type } of this.scrollTargets) {
       target.removeEventListener(type, type === "scroll" ? this.onScroll : this.onResize);
     }
@@ -23212,7 +23251,9 @@ var OPTION_KEYS = [
   "note",
   "arrow",
   "decorations",
-  "addBreaks"
+  "addBreaks",
+  "fontFamily",
+  "autoLoadFont"
 ];
 function collectOptions(props) {
   const options = {};
@@ -23262,6 +23303,8 @@ var Doodle = (0, import_react.forwardRef)(function Doodle2(props, forwardedRef) 
     arrow,
     decorations,
     addBreaks,
+    fontFamily,
+    autoLoadFont,
     childSelector,
     ...rest
   } = props;
@@ -23279,6 +23322,8 @@ var Doodle = (0, import_react.forwardRef)(function Doodle2(props, forwardedRef) 
       arrow,
       decorations,
       addBreaks,
+      fontFamily,
+      autoLoadFont,
       childSelector
     }),
     [
@@ -23294,6 +23339,8 @@ var Doodle = (0, import_react.forwardRef)(function Doodle2(props, forwardedRef) 
       JSON.stringify(arrow ?? null),
       JSON.stringify(decorations ?? null),
       JSON.stringify(addBreaks ?? null),
+      fontFamily,
+      autoLoadFont,
       childSelector
     ]
   );
@@ -23361,7 +23408,7 @@ function App() {
         arrow: { from: "right", to: "edge", style: "curved" },
         decorations: true,
         addBreaks: true,
-        padding: 8,
+        padding: -10,
         roughness: 1.55,
         strokeWidth: 1.35,
         children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FindButton, {})

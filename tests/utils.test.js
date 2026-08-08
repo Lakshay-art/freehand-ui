@@ -16,6 +16,24 @@ test("mergeOptions applies defaults and normalizes note", () => {
   assert.deepEqual(options.note, { text: "hello", position: "top-right" });
 });
 
+test("the frame traces the element's edge unless padding is asked for", () => {
+  assert.equal(mergeOptions({}).padding, 0);
+  assert.equal(mergeOptions({ padding: 12 }).padding, 12);
+});
+
+test("handwriting font is fetched by default and overridable", () => {
+  const defaults = mergeOptions({});
+  assert.equal(defaults.autoLoadFont, true);
+  assert.equal(defaults.fontFamily, null);
+
+  const custom = mergeOptions({
+    fontFamily: "var(--font-caveat)",
+    autoLoadFont: false,
+  });
+  assert.equal(custom.fontFamily, "var(--font-caveat)");
+  assert.equal(custom.autoLoadFont, false);
+});
+
 test("mergeOptions normalizes arrow and decorations", () => {
   const options = mergeOptions({ arrow: true, decorations: true });
   assert.equal(options.arrow.from, "top-right");

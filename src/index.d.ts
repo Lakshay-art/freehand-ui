@@ -59,6 +59,7 @@ export interface DoodleOptions {
   color?: string;
   strokeWidth?: number;
   roughness?: number;
+  /** Gap between the element's edge and the frame. Default `0`. */
   padding?: number;
   /** Auto-detected from CSS when omitted. */
   radius?: number | null;
@@ -70,6 +71,18 @@ export interface DoodleOptions {
   decorations?: boolean | DecorationOptions;
   /** Lift the pen at random points around the outline. */
   addBreaks?: boolean | number | BreakOptions;
+  /**
+   * Font stack for handwritten notes. Point this at your own family — a
+   * `next/font` CSS variable, for instance — to take over from the built-in one.
+   */
+  fontFamily?: string | null;
+  /**
+   * Fetch the Caveat webfont when the page has not already provided it.
+   * Default `true`. Set `false` if a strict CSP blocks Google Fonts, or if you
+   * self-host the family; the notes then use `fontFamily` or the system
+   * handwriting fallbacks.
+   */
+  autoLoadFont?: boolean;
 }
 
 export interface DoodleInstance {

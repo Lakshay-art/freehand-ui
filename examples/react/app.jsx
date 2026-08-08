@@ -54,7 +54,7 @@ function App() {
         arrow={{ from: "right", to: "edge", style: "curved" }}
         decorations
         addBreaks
-        padding={8}
+        padding={-10}
         roughness={1.55}
         strokeWidth={1.35}
       >

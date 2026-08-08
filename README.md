@@ -84,6 +84,8 @@ function Card() {
 
 - Inline object props (`note={{ text: "hi" }}`) are compared by value, so a
   re-render does not tear down and redraw the overlay with a new random seed.
+- The handwriting font is fetched automatically — see [Handwriting
+  font](#handwriting-font) to use `next/font` or self-host instead.
 - `disabled` skips drawing entirely — useful behind a reduced-motion check or a
   feature flag.
 - TypeScript definitions ship with the package for both entry points.
@@ -96,12 +98,50 @@ doodle(".card", {
   color: "#ffffff",
   strokeWidth: 1.5,
   roughness: 1.5,
-  padding: 8,
-  radius: 20,       // optional override; auto-detected from CSS when omitted
+  padding: 0,        // gap between the element's edge and the frame
+  radius: 20,        // optional override; auto-detected from CSS when omitted
   opacity: 0.9,
-  addBreaks: false, // lift the pen at random points around the outline
+  addBreaks: false,  // lift the pen at random points around the outline
+  fontFamily: null,  // override the handwriting stack
+  autoLoadFont: true,
 });
 ```
+
+The frame traces the element's own edge by default. Raise `padding` to stand it
+off — `padding: 8` leaves a comfortable margin around a card.
+
+## Handwriting font
+
+Notes are set in [Caveat](https://fonts.google.com/specimen/Caveat). The library
+loads it for you the first time a note is drawn, so the handwriting looks right
+in a plain app with no font setup of its own — without it the text falls back to
+the generic `cursive` family, which on macOS is a calligraphic serif rather than
+anything handwritten.
+
+It skips the request when the page already provides the family, and only ever
+requests it once. To take over:
+
+```javascript
+// self-hosted, or already loaded elsewhere on the page
+doodle(".card", { note: "hi", autoLoadFont: false });
+
+// your own family — a next/font CSS variable, for instance
+doodle(".card", { note: "hi", fontFamily: "var(--font-caveat)" });
+```
+
+```jsx
+import { Caveat } from "next/font/google";
+const caveat = Caveat({ subsets: ["latin"], variable: "--font-caveat" });
+
+<Doodle note="start chat" fontFamily="var(--font-caveat)" autoLoadFont={false}>
+  <Button />
+</Doodle>;
+```
+
+Setting `autoLoadFont: false` without a `fontFamily` falls back to whatever
+handwriting faces the system has (Bradley Hand, Segoe Script, Comic Sans MS).
+Notes are re-measured when a font finishes loading, so the underline always
+matches the final glyph widths.
 
 ## Broken outlines
 

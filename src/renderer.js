@@ -7,8 +7,11 @@ import {
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+// Caveat is loaded by the library (see fonts.js). The rest are system
+// handwriting faces, so an app that blocks the webfont still gets something
+// hand-drawn instead of the generic `cursive` calligraphic serif.
 const HANDWRITTEN_FONT =
-  '"Caveat", "Kalam", "Patrick Hand", cursive';
+  '"Caveat", "Kalam", "Patrick Hand", "Bradley Hand", "Segoe Script", "Comic Sans MS", cursive';
 
 const NOTE_FONT_SIZE = 19;
 
@@ -785,7 +788,7 @@ export function createNoteText(svg, text, style) {
   textEl.setAttribute("fill", style.color);
   textEl.setAttribute("opacity", String(style.opacity));
   textEl.setAttribute("font-size", String(fontSize));
-  textEl.setAttribute("font-family", HANDWRITTEN_FONT);
+  textEl.setAttribute("font-family", style.fontFamily || HANDWRITTEN_FONT);
   textEl.setAttribute("font-weight", "600");
   textEl.setAttribute("letter-spacing", "0.4");
   textEl.setAttribute("text-anchor", "start");

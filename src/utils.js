@@ -3,7 +3,8 @@ const DEFAULT_OPTIONS = {
   color: "#ffffff",
   strokeWidth: 1.5,
   roughness: 1.5,
-  padding: 8,
+  // The frame traces the element's own edge. Raise this to stand it off.
+  padding: 0,
   radius: null,
   opacity: 0.9,
   children: null,
@@ -11,6 +12,10 @@ const DEFAULT_OPTIONS = {
   arrow: false,
   decorations: false,
   addBreaks: false,
+  /** Override the handwriting stack, e.g. a next/font CSS variable. */
+  fontFamily: null,
+  /** Fetch Caveat when the page has not provided it. */
+  autoLoadFont: true,
 };
 
 /**

@@ -30,6 +30,8 @@ const OPTION_KEYS = [
   "arrow",
   "decorations",
   "addBreaks",
+  "fontFamily",
+  "autoLoadFont",
 ];
 
 /**
@@ -122,6 +124,8 @@ const Doodle = forwardRef(function Doodle(props, forwardedRef) {
     arrow,
     decorations,
     addBreaks,
+    fontFamily,
+    autoLoadFont,
     childSelector,
     ...rest
   } = props;
@@ -142,6 +146,8 @@ const Doodle = forwardRef(function Doodle(props, forwardedRef) {
         arrow,
         decorations,
         addBreaks,
+        fontFamily,
+        autoLoadFont,
         childSelector,
       }),
     [
@@ -157,6 +163,8 @@ const Doodle = forwardRef(function Doodle(props, forwardedRef) {
       JSON.stringify(arrow ?? null),
       JSON.stringify(decorations ?? null),
       JSON.stringify(addBreaks ?? null),
+      fontFamily,
+      autoLoadFont,
       childSelector,
     ]
   );

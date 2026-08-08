@@ -18,6 +18,7 @@ import {
 } from "./renderer.js";
 import { renderAnnotation } from "./annotations.js";
 import { renderDecorations } from "./decorations.js";
+import { ensureHandwrittenFont } from "./fonts.js";
 
 /** @typedef {import('./utils.js').DoodleOptions} DoodleOptions */
 
@@ -95,10 +96,20 @@ class DoodleOverlay {
     window.addEventListener("resize", this.onResize, { passive: true });
     this.scrollTargets.push({ target: window, type: "resize" });
 
-    // Note layout depends on measured glyphs — remeasure once webfonts land
-    document.fonts?.ready
-      ?.then(() => this.scheduleUpdate())
-      .catch(() => {});
+    if (
+      this.options.note &&
+      this.options.autoLoadFont &&
+      !this.options.fontFamily
+    ) {
+      ensureHandwrittenFont();
+    }
+
+    // Note layout depends on measured glyphs, so remeasure once webfonts land.
+    // `loadingdone` matters as well as `ready`: the font request above may be
+    // issued after `ready` has already settled for the page.
+    this.onFontsLoaded = () => this.scheduleUpdate();
+    document.fonts?.addEventListener?.("loadingdone", this.onFontsLoaded);
+    document.fonts?.ready?.then(this.onFontsLoaded).catch(() => {});
 
     this.update();
   }
@@ -153,7 +164,13 @@ class DoodleOverlay {
     this.svg.style.height = `${overlayRect.height}px`;
 
     const strokeStyle = { color, strokeWidth, roughness, opacity };
-    const noteStyle = { color, opacity, strokeWidth, roughness };
+    const noteStyle = {
+      color,
+      opacity,
+      strokeWidth,
+      roughness,
+      fontFamily: this.options.fontFamily,
+    };
     const noteGroups = [];
     // A connected note is pushed further out so its arrow has room to sweep
     const noteLayout = {
@@ -249,6 +266,11 @@ class DoodleOverlay {
     if (this.mutationObserver) {
       this.mutationObserver.disconnect();
       this.mutationObserver = null;
+    }
+
+    if (this.onFontsLoaded) {
+      document.fonts?.removeEventListener?.("loadingdone", this.onFontsLoaded);
+      this.onFontsLoaded = null;
     }
 
     for (const { target, type } of this.scrollTargets) {
