@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>doodle-ui — basic</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        font-family: system-ui, sans-serif;
+        color: #fff;
+      }
+      .card {
+        width: min(320px, 90vw);
+        padding: 2rem;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(8px);
+        text-align: center;
+      }
+      .card h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
+      .card p { margin: 0; opacity: 0.75; font-size: 0.95rem; }
+      .controls {
+        position: fixed;
+        bottom: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 0.5rem;
+      }
+      button {
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.2);
+        color: #fff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card" id="card">
+      <h1>Hello, doodle-ui</h1>
+      <p>A hand-drawn border around this card.</p>
+    </div>
+
+    <div class="controls">
+      <button id="resize">Toggle width</button>
+      <button id="destroy">Destroy</button>
+      <button id="recreate">Recreate</button>
+    </div>
+
+    <script type="module">
+      import { doodle } from "../../dist/freehand-ui.js";
+
+      const card = document.querySelector("#card");
+      let instance = doodle(card, {
+        color: "#ffffff",
+        strokeWidth: 1.4,
+        roughness: 1.6,
+        padding: 10,
+        opacity: 0.92,
+        decorations: { count: 2, types: ["sparkle", "heart"] },
+      });
+
+      document.querySelector("#resize").addEventListener("click", () => {
+        card.style.width = card.style.width === "480px" ? "" : "480px";
+        instance.update();
+      });
+
+      document.querySelector("#destroy").addEventListener("click", () => {
+        instance.destroy();
+        instance = null;
+      });
+
+      document.querySelector("#recreate").addEventListener("click", () => {
+        instance = doodle(card);
+      });
+    </script>
+  </body>
+</html>

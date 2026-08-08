@@ -1,0 +1,55 @@
+{
+  "name": "freehand-ui",
+  "version": "0.1.0",
+  "description": "Wrap any existing web element with a beautiful, responsive, hand-drawn doodle layer",
+  "type": "module",
+  "main": "./dist/freehand-ui.cjs",
+  "module": "./dist/freehand-ui.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/freehand-ui.js",
+      "require": "./dist/freehand-ui.cjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "node scripts/build.js",
+    "build:example-react": "node scripts/build-example-react.js",
+    "dev": "node scripts/build.js && node scripts/build-example-react.js && node scripts/serve.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "keywords": [
+    "doodle",
+    "hand-drawn",
+    "svg",
+    "annotation",
+    "sketch",
+    "ui",
+    "react"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=17"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
