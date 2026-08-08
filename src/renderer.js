@@ -3,6 +3,8 @@ import {
   pointFromPosition,
   annotationAnchor,
   nearestPointOnRect,
+  directionFromPosition,
+  pointOnBoxToward,
 } from "./geometry.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -538,6 +540,93 @@ export function drawBorder(svg, rect, options, seed) {
 }
 
 /**
+ * Point on a cubic bézier.
+ */
+function cubicAt(p0, c1, c2, p3, t) {
+  const u = 1 - t;
+  const a = u * u * u;
+  const b = 3 * u * u * t;
+  const c = 3 * u * t * t;
+  const d = t * t * t;
+
+  return {
+    x: a * p0.x + b * c1.x + c * c2.x + d * p3.x,
+    y: a * p0.y + b * c1.y + c * c2.y + d * p3.y,
+  };
+}
+
+/**
+ * Tangent of a cubic bézier.
+ */
+function cubicTangentAt(p0, c1, c2, p3, t) {
+  const u = 1 - t;
+  const a = 3 * u * u;
+  const b = 6 * u * t;
+  const c = 3 * t * t;
+
+  return {
+    x: a * (c1.x - p0.x) + b * (c2.x - c1.x) + c * (p3.x - c2.x),
+    y: a * (c1.y - p0.y) + b * (c2.y - c1.y) + c * (p3.y - c2.y),
+  };
+}
+
+/**
+ * The base curve with a curl tied into it: the pen sweeps along, loops once
+ * around a small circle, and carries on to the tip.
+ *
+ * @param {{ x: number, y: number }} start
+ * @param {{ x: number, y: number }} c1
+ * @param {{ x: number, y: number }} c2
+ * @param {{ x: number, y: number }} end
+ * @param {number} radius
+ * @param {() => number} random
+ * @returns {{ x: number, y: number }[]}
+ */
+function loopedCurvePoints(start, c1, c2, end, radius, random) {
+  const at = (t) => cubicAt(start, c1, c2, end, t);
+  const tangentAt = (t) => normalize(cubicTangentAt(start, c1, c2, end, t));
+
+  const knot = 0.46 + random() * 0.12;
+  const points = [];
+
+  const lead = Math.max(2, Math.round(knot * 16));
+  for (let i = 0; i <= lead; i++) points.push(at((knot * i) / lead));
+
+  // Curl sits to one side of the path, so the stroke crosses itself once
+  const pivot = at(knot);
+  const heading = tangentAt(knot);
+  const normal = { x: -heading.y, y: heading.x };
+  const side = random() < 0.5 ? 1 : -1;
+  const centre = {
+    x: pivot.x + normal.x * radius * side,
+    y: pivot.y + normal.y * radius * side,
+  };
+
+  const from = Math.atan2(pivot.y - centre.y, pivot.x - centre.x);
+  const turns = Math.PI * 2 * (0.97 + random() * 0.08);
+  const steps = 18;
+
+  for (let i = 1; i <= steps; i++) {
+    const progress = i / steps;
+    const angle = from + turns * progress * side;
+    // Drift along the path while looping so the curl opens instead of closing
+    const drift = radius * 0.55 * progress;
+
+    points.push({
+      x: centre.x + Math.cos(angle) * radius + heading.x * drift,
+      y: centre.y + Math.sin(angle) * radius + heading.y * drift,
+    });
+  }
+
+  const tail = 14;
+  for (let i = 1; i <= tail; i++) {
+    points.push(at(knot + (1 - knot) * (i / tail)));
+  }
+
+  return points;
+}
+
+/**
  * @param {{ x: number, y: number }} vector
  */
 function normalize(vector) {
@@ -546,6 +635,14 @@ function normalize(vector) {
   return { x: vector.x / length, y: vector.y / length };
 }
 
+// Clear space between the handwriting and the start of the shaft
+const NOTE_CLEARANCE = 10;
+
+// Standoff between the tip and the element's outline. The border wobbles
+// outward by a couple of px and carries a second sketch pass beyond that, so a
+// tight gap reads as the arrow touching the component.
+const TIP_GAP = 11;
+
 /**
  * Where a callout leaves its note. Notes are wide and short, so a note sitting
  * above the frame launches from the far end of its baseline — that is what
@@ -553,9 +650,36 @@ function normalize(vector) {
  * @param {import('./geometry.js').Rect} origin
  * @param {{ x: number, y: number }} target
  */
-function arrowStartFromNote(origin, target) {
+export function arrowStartFromNote(origin, target, from) {
   const cx = origin.x + origin.width / 2;
   const cy = origin.y + origin.height / 2;
+
+  // `from` names a side of the *note*, not of the element: it says where the
+  // pen leaves the handwriting. The arrow then runs to the element wherever
+  // that is, so an offset note stays connected to what it annotates.
+  if (from && from !== "note") {
+    const point = pointFromPosition(from, origin);
+    const away = directionFromPosition(from);
+
+    // `center` — and any side whose point lands within the glyph box — would
+    // start the shaft on top of the handwriting. Walk it out to the edge facing
+    // the element first, so the arrow always leaves the text rather than
+    // crossing it.
+    if (!away.x && !away.y) {
+      const edge = pointOnBoxToward(origin, target);
+      const outward = normalize({ x: edge.x - cx, y: edge.y - cy });
+      return {
+        x: edge.x + outward.x * NOTE_CLEARANCE,
+        y: edge.y + outward.y * NOTE_CLEARANCE,
+      };
+    }
+
+    return {
+      x: point.x + away.x * NOTE_CLEARANCE,
+      y: point.y + away.y * NOTE_CLEARANCE,
+    };
+  }
+
   const dx = target.x - cx;
   const dy = target.y - cy;
   const hw = origin.width / 2 || 0.001;
@@ -564,10 +688,13 @@ function arrowStartFromNote(origin, target) {
   const sx = Math.sign(dx) || 1;
   const sy = Math.sign(dy) || 1;
 
+  // Launch from just past the far end, not from inside the box. A note sitting
+  // squarely above or beside its element is only a short hop away, and starting
+  // inside its span leaves too little shaft for the arrow to read as one.
   if (Math.abs(dy) / hh >= Math.abs(dx) / hw) {
-    return { x: cx - sx * hw * 0.72, y: cy + sy * (hh + 7) };
+    return { x: cx - sx * (hw + 10), y: cy + sy * (hh + 4) };
   }
-  return { x: cx + sx * (hw + 7), y: cy + sy * hh * 0.2 };
+  return { x: cx + sx * (hw + 8), y: cy + sy * (hh + 6) };
 }
 
 /**
@@ -580,12 +707,17 @@ function arrowStartFromNote(origin, target) {
  */
 function arrowEndpoints(rect, arrowOptions, random, origin) {
   const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+
+  const from = arrowOptions.from || "note";
+  // A callout always departs from its note, however far an offset has moved it.
+  // Only a note-less arrow anchors to the element, where `from` is the one
+  // thing left to position it by.
   const anchored = Boolean(origin && origin.width > 0 && origin.height > 0);
 
   let start = anchored
-    ? arrowStartFromNote(origin, center)
+    ? arrowStartFromNote(origin, center, from)
     : annotationAnchor(
-        arrowOptions.from || "top-right",
+        from === "note" ? "top-right" : from,
         rect,
         38 + random() * 12
       );
@@ -599,8 +731,8 @@ function arrowEndpoints(rect, arrowOptions, random, origin) {
     const near = nearestPointOnRect(rect, start);
     let outward = normalize({ x: start.x - near.x, y: start.y - near.y });
     if (!outward.x && !outward.y) outward = { x: 0, y: -1 };
-    // Land just OUTSIDE the frame so the tip kisses the border
-    const gap = 6 + random() * 3;
+    // Stand off the frame rather than touching it
+    const gap = TIP_GAP + random() * 5;
     end = { x: near.x + outward.x * gap, y: near.y + outward.y * gap };
   } else {
     end = pointFromPosition(toPos, rect);
@@ -619,6 +751,56 @@ function arrowEndpoints(rect, arrowOptions, random, origin) {
   }
 
   return { start, end };
+}
+
+/**
+ * Hand-drawn V arrowhead, aligned to the tangent at the tip.
+ * @param {SVGElement} svg
+ * @param {{ x: number, y: number }} tip
+ * @param {number} angle
+ * @param {{ color: string, strokeWidth: number, roughness: number, opacity: number }} style
+ * @param {() => number} random
+ */
+function drawArrowHead(svg, tip, angle, style, random, shaftLength = Infinity) {
+  // Scaled to the shaft: a fixed head on a short arrow swallows it and the
+  // whole mark reads as a hook rather than an arrow.
+  const length = Math.min(9 + style.strokeWidth * 1.4, shaftLength * 0.3);
+  const spread = 0.46 + random() * 0.1;
+
+  for (const side of [-1, 1]) {
+    const armAngle = angle + spread * side;
+    const tail = {
+      x: tip.x - length * Math.cos(armAngle),
+      y: tip.y - length * Math.sin(armAngle),
+    };
+    appendPath(
+      svg,
+      roughLine(tail.x, tail.y, tip.x, tip.y, style.roughness * 0.5, random, {
+        steps: 2,
+        bow: 0.35 * side,
+      }),
+      { ...style, dashed: false }
+    );
+  }
+}
+
+/**
+ * Box enclosing a set of points. A b\u00e9zier stays inside the hull of its control
+ * polygon, so passing the controls bounds the whole shaft \u2014 decorations use this
+ * to keep off the arrow.
+ * @param {{ x: number, y: number }[]} points
+ * @returns {import('./geometry.js').Rect}
+ */
+function boundsOf(points) {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+
+  return {
+    x: Math.min(...xs),
+    y: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
 }
 
 /**
@@ -656,10 +838,19 @@ export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
       x: rect.x + rect.width / 2 - mid.x,
       y: rect.y + rect.height / 2 - mid.y,
     };
+    // Bow away from the element. When the shaft points almost straight at the
+    // centre the two sides are equally "away" and the dot product is noise, so
+    // fall back to the seeded choice instead of letting rounding decide.
+    const lateral =
+      perpendicular.x * towardCenter.x + perpendicular.y * towardCenter.y;
     const sign =
-      perpendicular.x * towardCenter.x + perpendicular.y * towardCenter.y > 0
-        ? -1
-        : 1;
+      Math.abs(lateral) > distance * 0.12
+        ? lateral > 0
+          ? -1
+          : 1
+        : random() < 0.5
+          ? -1
+          : 1;
     const bow = Math.min(distance * (0.16 + random() * 0.08), 30) * sign;
 
     const c1x = start.x + dx * 0.28 + perpendicular.x * bow;
@@ -667,6 +858,30 @@ export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
     const c2x = start.x + dx * 0.72 + perpendicular.x * bow * 0.85;
     const c2y = start.y + dy * 0.72 + perpendicular.y * bow * 0.85;
     hull.push({ x: c1x, y: c1y }, { x: c2x, y: c2y });
+
+    if (arrowOptions.style === "looped") {
+      const radius = clamp(distance * 0.11, 7, 17);
+      const points = loopedCurvePoints(
+        start,
+        { x: c1x, y: c1y },
+        { x: c2x, y: c2y },
+        end,
+        radius,
+        random
+      );
+
+      shaft = catmullRomPath(points, false);
+      hull.push(...points);
+
+      // Tangent off the final pair, so the head follows the curve out of the curl
+      const last = points[points.length - 1];
+      const prior = points[points.length - 2] ?? start;
+      tipAngle = Math.atan2(last.y - prior.y, last.x - prior.x);
+
+      appendPath(svg, shaft, { ...style, dashed });
+      drawArrowHead(svg, end, tipAngle, style, random, distance);
+      return { start, end, bounds: boundsOf(hull) };
+    }
 
     shaft = `M ${fmt(start.x)} ${fmt(start.y)} C ${fmt(c1x)} ${fmt(c1y)} ${fmt(c2x)} ${fmt(c2y)} ${fmt(end.x)} ${fmt(end.y)}`;
 
@@ -686,36 +901,9 @@ export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
 
   appendPath(svg, shaft, { ...style, dashed });
 
-  // Hand-drawn V arrowhead, aligned to the tangent
-  const headLength = 9 + style.strokeWidth * 1.4;
-  const spread = 0.46 + random() * 0.1;
+  drawArrowHead(svg, end, tipAngle, style, random, distance);
 
-  for (const side of [-1, 1]) {
-    const angle = tipAngle + spread * side;
-    const tail = {
-      x: end.x - headLength * Math.cos(angle),
-      y: end.y - headLength * Math.sin(angle),
-    };
-    appendPath(
-      svg,
-      roughLine(tail.x, tail.y, end.x, end.y, style.roughness * 0.5, random, {
-        steps: 2,
-        bow: 0.35 * side,
-      }),
-      { ...style, dashed: false }
-    );
-  }
-
-  // A bézier stays inside the hull of its control polygon, so this bounds the
-  // shaft — decorations use it to keep off the arrow.
-  const xs = hull.map((p) => p.x);
-  const ys = hull.map((p) => p.y);
-  const bounds = {
-    x: Math.min(...xs),
-    y: Math.min(...ys),
-    width: Math.max(...xs) - Math.min(...xs),
-    height: Math.max(...ys) - Math.min(...ys),
-  };
+  const bounds = boundsOf(hull);
 
   return { start, end, bounds };
 }
@@ -769,6 +957,61 @@ export function drawUnderline(svg, x, y, width, style, random) {
   );
 }
 
+// Handwritten notes read as a short stack rather than one long ribbon, so they
+// wrap by word count instead of by width.
+const DEFAULT_WORDS_PER_LINE = 2;
+
+/**
+ * Split a note into lines of at most `perLine` words. Explicit newlines are
+ * honoured first. A non-positive or non-finite limit keeps each paragraph whole.
+ * @param {string} text
+ * @param {number} perLine
+ * @returns {string[]}
+ */
+function wrapWords(text, perLine) {
+  const lines = [];
+
+  for (const paragraph of String(text).split(/\r?\n/)) {
+    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) continue;
+
+    const size =
+      Number.isFinite(perLine) && perLine >= 1
+        ? Math.round(perLine)
+        : words.length;
+
+    for (let i = 0; i < words.length; i += size) {
+      lines.push(words.slice(i, i + size).join(" "));
+    }
+  }
+
+  return lines.length ? lines : [String(text)];
+}
+
+/**
+ * @param {SVGTextContentElement} element
+ * @param {string} content
+ * @param {number} fontSize
+ * @returns {number}
+ */
+function measureWidth(element, content, fontSize) {
+  try {
+    const box = element.getBBox();
+    if (box && box.width > 0) return box.width;
+  } catch {
+    /* not rendered yet — fall through to the estimate */
+  }
+
+  try {
+    const measured = element.getComputedTextLength();
+    if (Number.isFinite(measured) && measured > 0) return measured;
+  } catch {
+    /* ignore */
+  }
+
+  return content.length * fontSize * 0.45;
+}
+
 /**
  * Create the note text at the origin and measure it, so layout can use real
  * glyph metrics instead of estimating from the string length.
@@ -777,12 +1020,14 @@ export function drawUnderline(svg, x, y, width, style, random) {
  * @param {{ color: string, opacity: number, fontSize?: number }} style
  * @returns {{ group: SVGGElement, textEl: SVGTextElement, width: number, ascent: number, descent: number, fontSize: number }}
  */
-export function createNoteText(svg, text, style) {
+export function createNoteText(svg, text, style, options = {}) {
   const fontSize = style.fontSize ?? NOTE_FONT_SIZE;
+  const lines = wrapWords(text, options.wordsPerLine ?? DEFAULT_WORDS_PER_LINE);
+  const lineHeight = fontSize * 1.05;
+
   const group = document.createElementNS(SVG_NS, "g");
   const textEl = document.createElementNS(SVG_NS, "text");
 
-  textEl.textContent = text;
   textEl.setAttribute("x", "0");
   textEl.setAttribute("y", "0");
   textEl.setAttribute("fill", style.color);
@@ -794,32 +1039,42 @@ export function createNoteText(svg, text, style) {
   textEl.setAttribute("text-anchor", "start");
   textEl.setAttribute("dominant-baseline", "auto");
 
+  const tspans = lines.map((line, index) => {
+    const tspan = document.createElementNS(SVG_NS, "tspan");
+    tspan.textContent = line;
+    tspan.setAttribute("x", "0");
+    tspan.setAttribute("dy", index === 0 ? "0" : String(lineHeight));
+    textEl.appendChild(tspan);
+    return tspan;
+  });
+
   group.appendChild(textEl);
   svg.appendChild(group);
 
-  let width = 0;
-  try {
-    const box = textEl.getBBox();
-    if (box && box.width > 0) width = box.width;
-  } catch {
-    /* not rendered yet — fall through to the estimate */
-  }
-  if (!width) {
-    try {
-      const measured = textEl.getComputedTextLength();
-      if (Number.isFinite(measured) && measured > 0) width = measured;
-    } catch {
-      /* ignore */
-    }
-  }
-  if (!width) width = text.length * fontSize * 0.45;
+  const lineWidths = tspans.map((tspan, index) =>
+    measureWidth(tspan, lines[index], fontSize)
+  );
+  const width = Math.max(...lineWidths);
 
   // Stable font metrics keep the underline at a constant distance regardless
   // of whether the string happens to have ascenders or descenders.
   const ascent = fontSize * 0.74;
   const descent = fontSize * 0.26;
+  const height = (lines.length - 1) * lineHeight + ascent + descent;
 
-  return { group, textEl, width, ascent, descent, fontSize };
+  return {
+    group,
+    textEl,
+    tspans,
+    lines,
+    lineWidths,
+    lineHeight,
+    width,
+    height,
+    ascent,
+    descent,
+    fontSize,
+  };
 }
 
 /**
@@ -837,6 +1092,8 @@ export function placeNoteText(note, box, style, seed, options = {}) {
 
   note.textEl.setAttribute("x", fmt(box.x));
   note.textEl.setAttribute("y", fmt(box.y + note.ascent));
+  // Each line carries its own x, so the text element's alone would not move them
+  for (const tspan of note.tspans) tspan.setAttribute("x", fmt(box.x));
 
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
@@ -846,11 +1103,15 @@ export function placeNoteText(note, box, style, seed, options = {}) {
   );
 
   if (options.underline !== false) {
+    // Underline the last line only, at that line's width — running it at the
+    // width of the widest line would overshoot a short closing line.
+    const lastWidth = note.lineWidths[note.lineWidths.length - 1] ?? box.width;
+
     drawUnderline(
       note.group,
       box.x + 1,
       box.y + box.height + 2,
-      box.width - 2,
+      lastWidth - 2,
       {
         color: style.color,
         strokeWidth: style.strokeWidth || 1.4,
@@ -874,8 +1135,14 @@ export function placeNoteText(note, box, style, seed, options = {}) {
  * @param {{ tilt?: number, underline?: boolean }} [options]
  */
 export function drawNote(svg, box, text, style, seed = 1, options = {}) {
-  const note = createNoteText(svg, text, style);
-  placeNoteText(note, { ...box, width: note.width }, style, seed, options);
+  const note = createNoteText(svg, text, style, options);
+  placeNoteText(
+    note,
+    { ...box, width: note.width, height: note.height },
+    style,
+    seed,
+    options
+  );
   return note.textEl;
 }
 

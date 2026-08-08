@@ -52,12 +52,28 @@ test("default decoration set pairs a corner accent with a star", () => {
   assert.ok(text.length, "has a handwriting accent");
 });
 
-test("arrow from follows note position", () => {
-  const options = mergeOptions({
+test("an arrow defaults to launching from the note", () => {
+  const withNote = mergeOptions({
     note: { text: "hey", position: "left" },
     arrow: true,
   });
-  assert.equal(options.arrow.from, "left");
+  assert.equal(withNote.arrow.from, "note");
+
+  const alone = mergeOptions({ arrow: true });
+  assert.equal(alone.arrow.from, "top-right");
+});
+
+test("an explicit arrow.from is kept, note or not", () => {
+  // Previously the note path ignored `from` entirely
+  const options = mergeOptions({
+    note: { text: "hey", position: "left" },
+    arrow: { from: "bottom-right" },
+  });
+
+  assert.equal(options.arrow.from, "bottom-right");
+  // partial arrow objects still get the rest of the defaults
+  assert.equal(options.arrow.to, "edge");
+  assert.equal(options.arrow.style, "curved");
 });
 
 test("createRandom is deterministic for a seed", () => {

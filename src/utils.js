@@ -44,13 +44,17 @@ export function mergeOptions(options = {}) {
     merged.note = { text: merged.note, position: "top-right" };
   }
 
-  if (merged.arrow === true) {
-    // Default callout: from note corner into the near edge of the frame
-    const from =
-      merged.note && typeof merged.note === "object" && merged.note.position
-        ? merged.note.position
-        : "top-right";
-    merged.arrow = { from, to: "edge", style: "curved" };
+  if (merged.arrow) {
+    const config = merged.arrow === true ? {} : merged.arrow;
+
+    merged.arrow = {
+      // "note" launches from the annotation, a position name from that side of
+      // the element. Normalised for every arrow, not just `arrow: true`, so an
+      // explicit `from` is honoured whether or not there is a note.
+      from: config.from ?? (merged.note ? "note" : "top-right"),
+      to: config.to ?? "edge",
+      style: config.style ?? "curved",
+    };
   }
 
   if (merged.decorations === true) {

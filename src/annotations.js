@@ -1,45 +1,9 @@
-import {
-  inflateRect,
-  intersectionArea,
-  outsideArea,
-  directionFromPosition,
-} from "./geometry.js";
+import { inflateRect, directionFromPosition } from "./geometry.js";
 import { createNoteText, placeNoteText } from "./renderer.js";
-import { isValidPosition, createRandom, clamp } from "./utils.js";
+import { isValidPosition, createRandom } from "./utils.js";
 
 // Clear space kept between the frame and the note's glyph box
 const NOTE_GAP = 14;
-
-/**
- * Mirror a position across an axis, used to build fallback placements.
- * @param {string} position
- * @param {"x" | "y"} axis
- */
-function mirror(position, axis) {
-  if (axis === "x") {
-    if (position.includes("right")) return position.replace("right", "left");
-    if (position.includes("left")) return position.replace("left", "right");
-    return position;
-  }
-  if (position.includes("top")) return position.replace("top", "bottom");
-  if (position.includes("bottom")) return position.replace("bottom", "top");
-  return position;
-}
-
-/**
- * Preferred placement first, then progressively different sides.
- * @param {string} position
- * @returns {string[]}
- */
-function candidatePositions(position) {
-  const candidates = [
-    position,
-    mirror(position, "x"),
-    mirror(position, "y"),
-    mirror(mirror(position, "x"), "y"),
-  ];
-  return candidates.filter((value, index) => candidates.indexOf(value) === index);
-}
 
 /**
  * Box for the note on one side of the frame. Corner placements clear the frame
@@ -75,69 +39,73 @@ function boxForPosition(rect, position, size, gap) {
 }
 
 /**
- * Pick the placement that keeps the note off the content and on screen.
- * @param {import('./geometry.js').Rect} rect
- * @param {string} position
- * @param {{ width: number, height: number }} size
- * @param {number} gap
- * @param {import('./geometry.js').Rect | null} viewport
+ * Cap a horizontal shift so it can never slide the note onto the element.
+ *
+ * Only bites for a note sitting level with the element — one above or below it
+ * is already clear vertically and may slide as far as it needs to.
+ *
+ * @param {import('./geometry.js').Rect} box
+ * @param {import('./geometry.js').Rect} guard
+ * @param {number} dx desired shift
+ * @returns {number} the part of it that is safe
  */
-function placeNote(rect, position, size, gap, viewport) {
-  const guard = inflateRect(rect, gap * 0.7);
-  let best = null;
+function limitAgainstElement(box, guard, dx) {
+  const level =
+    box.y < guard.y + guard.height && box.y + box.height > guard.y;
+  if (!level) return dx;
 
-  candidatePositions(position).forEach((candidate, index) => {
-    const box = boxForPosition(rect, candidate, size, gap);
-    const penalty =
-      intersectionArea(box, guard) * 6 +
-      outsideArea(box, viewport) +
-      index * 0.5;
+  if (dx < 0) {
+    // Travelling left: stop once our left edge reaches the element's right
+    const room = box.x - (guard.x + guard.width);
+    return room <= 0 ? 0 : -Math.min(-dx, room);
+  }
 
-    if (!best || penalty < best.penalty) {
-      best = { box, penalty, position: candidate };
-    }
-  });
-
-  return best;
+  // Travelling right: stop once our right edge reaches the element's left
+  const room = guard.x - (box.x + box.width);
+  return room <= 0 ? 0 : Math.min(dx, room);
 }
 
 /**
- * Nudge a box back on screen, but never at the cost of covering the element.
+ * Slide a box back into the readable band, keeping the side it was placed on.
+ *
+ * The note tracks the space available rather than jumping to another side: it
+ * moves by exactly the amount it overhangs, so a narrowing viewport walks it
+ * gradually inward instead of snapping it somewhere else. The only ceiling is
+ * the element itself.
+ *
+ * Horizontal only, deliberately. The overlay is fixed-position, so clamping
+ * against the viewport's top and bottom made the note crawl back into view as
+ * the page scrolled, sliding it off the element it belongs to. Horizontal
+ * extent does not change with vertical scroll, so this stays anchored.
+ *
  * @param {import('./geometry.js').Rect} box
  * @param {import('./geometry.js').Rect} guard
- * @param {import('./geometry.js').Rect | null} viewport
+ * @param {{ x: number, width: number } | null} band
  */
-function clampToViewport(box, guard, viewport) {
-  if (!viewport || viewport.width <= 0 || viewport.height <= 0) return box;
+export function nudgeIntoBand(box, guard, band) {
+  if (!band || band.width <= 0) return box;
 
-  const shifted = {
-    ...box,
-    x: clamp(
-      box.x,
-      viewport.x,
-      Math.max(viewport.x, viewport.x + viewport.width - box.width)
-    ),
-    y: clamp(
-      box.y,
-      viewport.y,
-      Math.max(viewport.y, viewport.y + viewport.height - box.height)
-    ),
-  };
+  const overhangLeft = band.x - box.x;
+  const overhangRight = box.x + box.width - (band.x + band.width);
 
-  // Only accept the correction if it does not push the note onto the content
-  if (intersectionArea(shifted, guard) > intersectionArea(box, guard)) {
-    return box;
-  }
-  return shifted;
+  let dx = 0;
+  if (overhangLeft > 0) dx = overhangLeft;
+  else if (overhangRight > 0) dx = -overhangRight;
+  if (!dx) return box;
+
+  dx = limitAgainstElement(box, guard, dx);
+  if (!dx) return box;
+
+  return { ...box, x: box.x + dx };
 }
 
 /**
  * @param {SVGElement} svg
  * @param {import('./geometry.js').Rect} rect
- * @param {{ text: string, position?: string, underline?: boolean }} noteOptions
+ * @param {{ text: string, position?: string, underline?: boolean, offset?: { x?: number, y?: number } }} noteOptions
  * @param {{ color: string, opacity: number, strokeWidth?: number, roughness?: number }} style
  * @param {number} [seed]
- * @param {{ viewport?: import('./geometry.js').Rect | null, gap?: number }} [layout]
+ * @param {{ band?: { x: number, width: number } | null, gap?: number }} [layout]
  * @returns {{ group: SVGGElement, box: import('./geometry.js').Rect, position: string } | null}
  */
 export function renderAnnotation(
@@ -150,45 +118,55 @@ export function renderAnnotation(
 ) {
   if (!noteOptions?.text) return null;
 
-  const viewport = layout.viewport ?? null;
+  const band = layout.band ?? null;
 
   const position = isValidPosition(noteOptions.position)
     ? noteOptions.position
     : "top-right";
 
   const random = createRandom(seed + 9);
-  const note = createNoteText(svg, noteOptions.text, style);
+  const note = createNoteText(svg, noteOptions.text, style, {
+    wordsPerLine: noteOptions.wordsPerLine,
+  });
 
   const tilt = (random() - 0.45) * 7;
   // A tilted box needs a little more vertical room than its upright glyph box
   const tiltPad = Math.abs(Math.sin((tilt * Math.PI) / 180)) * note.width * 0.5;
   const size = {
     width: note.width,
-    height: note.ascent + note.descent + (noteOptions.underline === false ? 0 : 5),
+    height: note.height + (noteOptions.underline === false ? 0 : 5),
   };
 
   const gap = (layout.gap ?? NOTE_GAP) + random() * 6;
-  const placed = placeNote(
+
+  // The requested side is honoured exactly; only the horizontal position moves
+  const placed = boxForPosition(
     rect,
     position,
     { width: size.width, height: size.height + tiltPad },
-    gap,
-    viewport
+    gap
   );
 
+  // The offset moves the note off the spot `position` chose. It is applied
+  // before the band check so that check sees where the note actually ends up —
+  // nudging first and offsetting after meant a note only started sliding once
+  // its *un-offset* position ran out of room, and the offset could then push it
+  // straight back off screen.
+  const shifted = {
+    ...placed,
+    x: placed.x + (Number(noteOptions.offset?.x) || 0),
+    y: placed.y + (Number(noteOptions.offset?.y) || 0),
+  };
+
   const guard = inflateRect(rect, gap * 0.7);
-  const outer = clampToViewport(
-    { ...placed.box, height: size.height + tiltPad },
-    guard,
-    viewport
-  );
+  const outer = nudgeIntoBand(shifted, guard, band);
 
   // Text box sits centred inside the tilt-padded outer box
   const box = {
     x: outer.x,
     y: outer.y + tiltPad / 2,
     width: size.width,
-    height: note.ascent + note.descent,
+    height: note.height,
   };
 
   placeNoteText(note, box, style, seed, {
@@ -196,5 +174,5 @@ export function renderAnnotation(
     underline: noteOptions.underline !== false,
   });
 
-  return { group: note.group, box: inflateRect(outer, 4), position: placed.position };
+  return { group: note.group, box: inflateRect(outer, 4), position };
 }

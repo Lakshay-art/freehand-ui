@@ -23,17 +23,33 @@ export type DecorationType =
 
 export interface NoteOptions {
   text: string;
-  /** Preferred side. Flips automatically if it would run off screen. */
+  /**
+   * Which side of the element the note sits on. Always honoured — a note that
+   * would run off screen slides horizontally to stay in view rather than
+   * moving to another side.
+   */
   position?: DoodlePosition;
   /** Underline sized to the measured text. Default `true`. */
   underline?: boolean;
+  /**
+   * Nudge the note from where `position` put it, in px. The note is still kept
+   * in view from the offset spot, so a large `x` slides back rather than
+   * running off screen.
+   */
+  offset?: { x?: number; y?: number };
 }
 
 export interface ArrowOptions {
-  from?: DoodlePosition;
+  /**
+   * Where the arrow leaves. With a `note` this names a side of *the note* —
+   * the arrow always departs from the handwriting and travels to the element,
+   * however far an `offset` has moved it. `"note"` (the default) picks the side
+   * facing the element. Without a note it names a side of the element instead.
+   */
+  from?: DoodlePosition | "note";
   /** `"edge"` lands just outside the frame; `"center"` points into it. */
   to?: DoodlePosition | "edge";
-  style?: "curved" | "straight" | "dotted";
+  style?: "curved" | "straight" | "dotted" | "looped";
 }
 
 export interface DecorationOptions {

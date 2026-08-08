@@ -39,8 +39,17 @@ function App() {
   return (
     <main className="stage">
       <Doodle
-        note={{ text: "fun with friends", position: "top-right" }}
-        arrow
+        note={{
+          text: "fun with friends",
+          position: "top-right",
+          offset: { x: 100, y: 0 },
+        }}
+        arrow={{
+          from: "bottom",
+          to: "right",
+          style: "looped",
+          // offset: { x: 100, y: 0 },
+        }}
         decorations
         padding={10}
         roughness={1.65}
@@ -50,11 +59,20 @@ function App() {
       </Doodle>
 
       <Doodle
-        note={{ text: "start chat", position: "right" }}
-        arrow={{ from: "right", to: "edge", style: "curved" }}
+        note={{
+          text: "start chat",
+          position: "right",
+          offset: { x: 100, y: 0 },
+        }}
+        arrow={{
+          from: "left",
+          to: "edge",
+          style: "looped",
+          // offset: { x: 100, y: 0 },
+        }}
         decorations
         addBreaks
-        padding={-10}
+        padding={0}
         roughness={1.55}
         strokeWidth={1.35}
       >

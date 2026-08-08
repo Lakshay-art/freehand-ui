@@ -25,21 +25,23 @@ import { ensureHandwrittenFont } from "./fonts.js";
 const instances = new WeakMap();
 
 /**
- * Viewport expressed in the overlay's local coordinate space, so annotations
- * can be kept on screen.
+ * The readable horizontal band, in the overlay's local coordinates.
+ *
+ * Horizontal only, on purpose: the overlay is fixed-position, so a band with
+ * top and bottom edges would move relative to the page as it scrolls, and
+ * notes clamped to it would crawl away from the element they annotate.
+ * Horizontal extent does not change with vertical scroll.
+ *
  * @param {import('./geometry.js').Rect} overlayRect
  * @param {number} [inset]
- * @returns {import('./geometry.js').Rect}
+ * @returns {{ x: number, width: number }}
  */
-function localViewport(overlayRect, inset = 8) {
+function localBand(overlayRect, inset = 8) {
   const width = window.innerWidth || document.documentElement.clientWidth || 0;
-  const height = window.innerHeight || document.documentElement.clientHeight || 0;
 
   return {
     x: -overlayRect.x + inset,
-    y: -overlayRect.y + inset,
     width: Math.max(0, width - inset * 2),
-    height: Math.max(0, height - inset * 2),
   };
 }
 
@@ -174,8 +176,8 @@ class DoodleOverlay {
     const noteGroups = [];
     // A connected note is pushed further out so its arrow has room to sweep
     const noteLayout = {
-      viewport: localViewport(overlayRect),
-      gap: this.options.arrow ? 32 : 14,
+      band: localBand(overlayRect),
+      gap: this.options.arrow ? 40 : 14,
     };
 
     targets.forEach((target, index) => {

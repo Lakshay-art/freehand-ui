@@ -21757,9 +21757,16 @@ function mergeOptions(options = {}) {
   if (merged.note && typeof merged.note === "string") {
     merged.note = { text: merged.note, position: "top-right" };
   }
-  if (merged.arrow === true) {
-    const from = merged.note && typeof merged.note === "object" && merged.note.position ? merged.note.position : "top-right";
-    merged.arrow = { from, to: "edge", style: "curved" };
+  if (merged.arrow) {
+    const config = merged.arrow === true ? {} : merged.arrow;
+    merged.arrow = {
+      // "note" launches from the annotation, a position name from that side of
+      // the element. Normalised for every arrow, not just `arrow: true`, so an
+      // explicit `from` is honoured whether or not there is a note.
+      from: config.from ?? (merged.note ? "note" : "top-right"),
+      to: config.to ?? "edge",
+      style: config.style ?? "curved"
+    };
   }
   if (merged.decorations === true) {
     merged.decorations = { count: null, types: null };
@@ -21902,10 +21909,6 @@ function intersectionArea(a, b) {
   const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
   return w > 0 && h > 0 ? w * h : 0;
 }
-function outsideArea(box, bounds) {
-  if (!bounds) return 0;
-  return Math.max(0, box.width * box.height - intersectionArea(box, bounds));
-}
 function nearestPointOnRect(rect, point) {
   return {
     x: clamp(point.x, rect.x, rect.x + rect.width),
@@ -21917,6 +21920,17 @@ function distanceToRoundedRect(point, rect, radius = 0) {
   const cx = clamp(point.x, rect.x + r, rect.x + rect.width - r);
   const cy = clamp(point.y, rect.y + r, rect.y + rect.height - r);
   return Math.hypot(point.x - cx, point.y - cy) - r;
+}
+function pointOnBoxToward(box, target) {
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const dx = target.x - cx;
+  const dy = target.y - cy;
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const hw = box.width / 2 || 1e-3;
+  const hh = box.height / 2 || 1e-3;
+  const scale = 1 / Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
+  return { x: cx + dx * scale, y: cy + dy * scale };
 }
 function directionFromPosition(position) {
   return {
@@ -22279,14 +22293,86 @@ function drawBorder(svg, rect, options, seed) {
     });
   }
 }
+function cubicAt(p0, c1, c2, p3, t) {
+  const u = 1 - t;
+  const a = u * u * u;
+  const b = 3 * u * u * t;
+  const c = 3 * u * t * t;
+  const d = t * t * t;
+  return {
+    x: a * p0.x + b * c1.x + c * c2.x + d * p3.x,
+    y: a * p0.y + b * c1.y + c * c2.y + d * p3.y
+  };
+}
+function cubicTangentAt(p0, c1, c2, p3, t) {
+  const u = 1 - t;
+  const a = 3 * u * u;
+  const b = 6 * u * t;
+  const c = 3 * t * t;
+  return {
+    x: a * (c1.x - p0.x) + b * (c2.x - c1.x) + c * (p3.x - c2.x),
+    y: a * (c1.y - p0.y) + b * (c2.y - c1.y) + c * (p3.y - c2.y)
+  };
+}
+function loopedCurvePoints(start, c1, c2, end, radius, random) {
+  const at = (t) => cubicAt(start, c1, c2, end, t);
+  const tangentAt = (t) => normalize(cubicTangentAt(start, c1, c2, end, t));
+  const knot = 0.46 + random() * 0.12;
+  const points = [];
+  const lead = Math.max(2, Math.round(knot * 16));
+  for (let i = 0; i <= lead; i++) points.push(at(knot * i / lead));
+  const pivot = at(knot);
+  const heading = tangentAt(knot);
+  const normal = { x: -heading.y, y: heading.x };
+  const side = random() < 0.5 ? 1 : -1;
+  const centre = {
+    x: pivot.x + normal.x * radius * side,
+    y: pivot.y + normal.y * radius * side
+  };
+  const from = Math.atan2(pivot.y - centre.y, pivot.x - centre.x);
+  const turns = Math.PI * 2 * (0.97 + random() * 0.08);
+  const steps = 18;
+  for (let i = 1; i <= steps; i++) {
+    const progress = i / steps;
+    const angle = from + turns * progress * side;
+    const drift = radius * 0.55 * progress;
+    points.push({
+      x: centre.x + Math.cos(angle) * radius + heading.x * drift,
+      y: centre.y + Math.sin(angle) * radius + heading.y * drift
+    });
+  }
+  const tail = 14;
+  for (let i = 1; i <= tail; i++) {
+    points.push(at(knot + (1 - knot) * (i / tail)));
+  }
+  return points;
+}
 function normalize(vector) {
   const length = Math.hypot(vector.x, vector.y);
   if (!length) return { x: 0, y: 0 };
   return { x: vector.x / length, y: vector.y / length };
 }
-function arrowStartFromNote(origin, target) {
+var NOTE_CLEARANCE = 10;
+var TIP_GAP = 11;
+function arrowStartFromNote(origin, target, from) {
   const cx = origin.x + origin.width / 2;
   const cy = origin.y + origin.height / 2;
+  if (from && from !== "note") {
+    const point = pointFromPosition(from, origin);
+    const away = directionFromPosition(from);
+    if (!away.x && !away.y) {
+      const edge = pointOnBoxToward(origin, target);
+      const outward = normalize({ x: edge.x - cx, y: edge.y - cy });
+      return {
+        x: edge.x + outward.x * NOTE_CLEARANCE,
+        y: edge.y + outward.y * NOTE_CLEARANCE
+      };
+    }
+    return {
+      x: point.x + away.x * NOTE_CLEARANCE,
+      y: point.y + away.y * NOTE_CLEARANCE
+    };
+  }
   const dx = target.x - cx;
   const dy = target.y - cy;
   const hw = origin.width / 2 || 1e-3;
@@ -22294,15 +22380,16 @@ function arrowStartFromNote(origin, target) {
   const sx = Math.sign(dx) || 1;
   const sy = Math.sign(dy) || 1;
   if (Math.abs(dy) / hh >= Math.abs(dx) / hw) {
-    return { x: cx - sx * hw * 0.72, y: cy + sy * (hh + 7) };
+    return { x: cx - sx * (hw + 10), y: cy + sy * (hh + 4) };
   }
-  return { x: cx + sx * (hw + 7), y: cy + sy * hh * 0.2 };
+  return { x: cx + sx * (hw + 8), y: cy + sy * (hh + 6) };
 }
 function arrowEndpoints(rect, arrowOptions, random, origin) {
   const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  const from = arrowOptions.from || "note";
   const anchored = Boolean(origin && origin.width > 0 && origin.height > 0);
-  let start = anchored ? arrowStartFromNote(origin, center) : annotationAnchor(
-    arrowOptions.from || "top-right",
+  let start = anchored ? arrowStartFromNote(origin, center, from) : annotationAnchor(
+    from === "note" ? "top-right" : from,
     rect,
     38 + random() * 12
   );
@@ -22314,7 +22401,7 @@ function arrowEndpoints(rect, arrowOptions, random, origin) {
     const near = nearestPointOnRect(rect, start);
     let outward = normalize({ x: start.x - near.x, y: start.y - near.y });
     if (!outward.x && !outward.y) outward = { x: 0, y: -1 };
-    const gap = 6 + random() * 3;
+    const gap = TIP_GAP + random() * 5;
     end = { x: near.x + outward.x * gap, y: near.y + outward.y * gap };
   } else {
     end = pointFromPosition(toPos, rect);
@@ -22326,6 +22413,35 @@ function arrowEndpoints(rect, arrowOptions, random, origin) {
     start = { x: end.x + unit.x * minimum, y: end.y + unit.y * minimum };
   }
   return { start, end };
+}
+function drawArrowHead(svg, tip, angle, style, random, shaftLength = Infinity) {
+  const length = Math.min(9 + style.strokeWidth * 1.4, shaftLength * 0.3);
+  const spread = 0.46 + random() * 0.1;
+  for (const side of [-1, 1]) {
+    const armAngle = angle + spread * side;
+    const tail = {
+      x: tip.x - length * Math.cos(armAngle),
+      y: tip.y - length * Math.sin(armAngle)
+    };
+    appendPath(
+      svg,
+      roughLine(tail.x, tail.y, tip.x, tip.y, style.roughness * 0.5, random, {
+        steps: 2,
+        bow: 0.35 * side
+      }),
+      { ...style, dashed: false }
+    );
+  }
+}
+function boundsOf(points) {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  return {
+    x: Math.min(...xs),
+    y: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys)
+  };
 }
 function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
   const random = createRandom(seed + 17);
@@ -22348,13 +22464,33 @@ function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
       x: rect.x + rect.width / 2 - mid.x,
       y: rect.y + rect.height / 2 - mid.y
     };
-    const sign = perpendicular.x * towardCenter.x + perpendicular.y * towardCenter.y > 0 ? -1 : 1;
+    const lateral = perpendicular.x * towardCenter.x + perpendicular.y * towardCenter.y;
+    const sign = Math.abs(lateral) > distance * 0.12 ? lateral > 0 ? -1 : 1 : random() < 0.5 ? -1 : 1;
     const bow = Math.min(distance * (0.16 + random() * 0.08), 30) * sign;
     const c1x = start.x + dx * 0.28 + perpendicular.x * bow;
     const c1y = start.y + dy * 0.28 + perpendicular.y * bow;
     const c2x = start.x + dx * 0.72 + perpendicular.x * bow * 0.85;
     const c2y = start.y + dy * 0.72 + perpendicular.y * bow * 0.85;
     hull.push({ x: c1x, y: c1y }, { x: c2x, y: c2y });
+    if (arrowOptions.style === "looped") {
+      const radius = clamp(distance * 0.11, 7, 17);
+      const points = loopedCurvePoints(
+        start,
+        { x: c1x, y: c1y },
+        { x: c2x, y: c2y },
+        end,
+        radius,
+        random
+      );
+      shaft = catmullRomPath(points, false);
+      hull.push(...points);
+      const last = points[points.length - 1];
+      const prior = points[points.length - 2] ?? start;
+      tipAngle = Math.atan2(last.y - prior.y, last.x - prior.x);
+      appendPath(svg, shaft, { ...style, dashed });
+      drawArrowHead(svg, end, tipAngle, style, random, distance);
+      return { start, end, bounds: boundsOf(hull) };
+    }
     shaft = `M ${fmt(start.x)} ${fmt(start.y)} C ${fmt(c1x)} ${fmt(c1y)} ${fmt(c2x)} ${fmt(c2y)} ${fmt(end.x)} ${fmt(end.y)}`;
     if (style.roughness >= 1.1) {
       const drift = () => (random() - 0.5) * 1.4;
@@ -22369,31 +22505,8 @@ function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
     tipAngle = Math.atan2(end.y - c2y, end.x - c2x);
   }
   appendPath(svg, shaft, { ...style, dashed });
-  const headLength = 9 + style.strokeWidth * 1.4;
-  const spread = 0.46 + random() * 0.1;
-  for (const side of [-1, 1]) {
-    const angle = tipAngle + spread * side;
-    const tail = {
-      x: end.x - headLength * Math.cos(angle),
-      y: end.y - headLength * Math.sin(angle)
-    };
-    appendPath(
-      svg,
-      roughLine(tail.x, tail.y, end.x, end.y, style.roughness * 0.5, random, {
-        steps: 2,
-        bow: 0.35 * side
-      }),
-      { ...style, dashed: false }
-    );
-  }
-  const xs = hull.map((p) => p.x);
-  const ys = hull.map((p) => p.y);
-  const bounds = {
-    x: Math.min(...xs),
-    y: Math.min(...ys),
-    width: Math.max(...xs) - Math.min(...xs),
-    height: Math.max(...ys) - Math.min(...ys)
-  };
+  drawArrowHead(svg, end, tipAngle, style, random, distance);
+  const bounds = boundsOf(hull);
   return { start, end, bounds };
 }
 function drawUnderline(svg, x, y, width, style, random) {
@@ -22431,11 +22544,38 @@ function drawUnderline(svg, x, y, width, style, random) {
     }
   );
 }
-function createNoteText(svg, text, style) {
+var DEFAULT_WORDS_PER_LINE = 2;
+function wrapWords(text, perLine) {
+  const lines = [];
+  for (const paragraph of String(text).split(/\r?\n/)) {
+    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) continue;
+    const size = Number.isFinite(perLine) && perLine >= 1 ? Math.round(perLine) : words.length;
+    for (let i = 0; i < words.length; i += size) {
+      lines.push(words.slice(i, i + size).join(" "));
+    }
+  }
+  return lines.length ? lines : [String(text)];
+}
+function measureWidth(element, content, fontSize) {
+  try {
+    const box = element.getBBox();
+    if (box && box.width > 0) return box.width;
+  } catch {
+  }
+  try {
+    const measured = element.getComputedTextLength();
+    if (Number.isFinite(measured) && measured > 0) return measured;
+  } catch {
+  }
+  return content.length * fontSize * 0.45;
+}
+function createNoteText(svg, text, style, options = {}) {
   const fontSize = style.fontSize ?? NOTE_FONT_SIZE;
+  const lines = wrapWords(text, options.wordsPerLine ?? DEFAULT_WORDS_PER_LINE);
+  const lineHeight = fontSize * 1.05;
   const group = document.createElementNS(SVG_NS, "g");
   const textEl = document.createElementNS(SVG_NS, "text");
-  textEl.textContent = text;
   textEl.setAttribute("x", "0");
   textEl.setAttribute("y", "0");
   textEl.setAttribute("fill", style.color);
@@ -22446,31 +22586,43 @@ function createNoteText(svg, text, style) {
   textEl.setAttribute("letter-spacing", "0.4");
   textEl.setAttribute("text-anchor", "start");
   textEl.setAttribute("dominant-baseline", "auto");
+  const tspans = lines.map((line, index) => {
+    const tspan = document.createElementNS(SVG_NS, "tspan");
+    tspan.textContent = line;
+    tspan.setAttribute("x", "0");
+    tspan.setAttribute("dy", index === 0 ? "0" : String(lineHeight));
+    textEl.appendChild(tspan);
+    return tspan;
+  });
   group.appendChild(textEl);
   svg.appendChild(group);
-  let width = 0;
-  try {
-    const box = textEl.getBBox();
-    if (box && box.width > 0) width = box.width;
-  } catch {
-  }
-  if (!width) {
-    try {
-      const measured = textEl.getComputedTextLength();
-      if (Number.isFinite(measured) && measured > 0) width = measured;
-    } catch {
-    }
-  }
-  if (!width) width = text.length * fontSize * 0.45;
+  const lineWidths = tspans.map(
+    (tspan, index) => measureWidth(tspan, lines[index], fontSize)
+  );
+  const width = Math.max(...lineWidths);
   const ascent = fontSize * 0.74;
   const descent = fontSize * 0.26;
-  return { group, textEl, width, ascent, descent, fontSize };
+  const height = (lines.length - 1) * lineHeight + ascent + descent;
+  return {
+    group,
+    textEl,
+    tspans,
+    lines,
+    lineWidths,
+    lineHeight,
+    width,
+    height,
+    ascent,
+    descent,
+    fontSize
+  };
 }
 function placeNoteText(note, box, style, seed, options = {}) {
   const random = createRandom(seed + 55);
   const tilt = options.tilt ?? (random() - 0.5) * 7;
   note.textEl.setAttribute("x", fmt(box.x));
   note.textEl.setAttribute("y", fmt(box.y + note.ascent));
+  for (const tspan of note.tspans) tspan.setAttribute("x", fmt(box.x));
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   note.group.setAttribute(
@@ -22478,11 +22630,12 @@ function placeNoteText(note, box, style, seed, options = {}) {
     `rotate(${tilt.toFixed(2)} ${fmt(cx)} ${fmt(cy)})`
   );
   if (options.underline !== false) {
+    const lastWidth = note.lineWidths[note.lineWidths.length - 1] ?? box.width;
     drawUnderline(
       note.group,
       box.x + 1,
       box.y + box.height + 2,
-      box.width - 2,
+      lastWidth - 2,
       {
         color: style.color,
         strokeWidth: style.strokeWidth || 1.4,
@@ -22512,25 +22665,6 @@ function createOverlaySvg(left, top, width, height) {
   return svg;
 }
 var NOTE_GAP = 14;
-function mirror(position, axis) {
-  if (axis === "x") {
-    if (position.includes("right")) return position.replace("right", "left");
-    if (position.includes("left")) return position.replace("left", "right");
-    return position;
-  }
-  if (position.includes("top")) return position.replace("top", "bottom");
-  if (position.includes("bottom")) return position.replace("bottom", "top");
-  return position;
-}
-function candidatePositions(position) {
-  const candidates = [
-    position,
-    mirror(position, "x"),
-    mirror(position, "y"),
-    mirror(mirror(position, "x"), "y")
-  ];
-  return candidates.filter((value, index) => candidates.indexOf(value) === index);
-}
 function boxForPosition(rect, position, size, gap) {
   const direction = directionFromPosition(position);
   const guard = inflateRect(rect, gap);
@@ -22549,75 +22683,67 @@ function boxForPosition(rect, position, size, gap) {
   }
   return { x, y, width: size.width, height: size.height };
 }
-function placeNote(rect, position, size, gap, viewport) {
-  const guard = inflateRect(rect, gap * 0.7);
-  let best = null;
-  candidatePositions(position).forEach((candidate, index) => {
-    const box = boxForPosition(rect, candidate, size, gap);
-    const penalty = intersectionArea(box, guard) * 6 + outsideArea(box, viewport) + index * 0.5;
-    if (!best || penalty < best.penalty) {
-      best = { box, penalty, position: candidate };
-    }
-  });
-  return best;
-}
-function clampToViewport(box, guard, viewport) {
-  if (!viewport || viewport.width <= 0 || viewport.height <= 0) return box;
-  const shifted = {
-    ...box,
-    x: clamp(
-      box.x,
-      viewport.x,
-      Math.max(viewport.x, viewport.x + viewport.width - box.width)
-    ),
-    y: clamp(
-      box.y,
-      viewport.y,
-      Math.max(viewport.y, viewport.y + viewport.height - box.height)
-    )
-  };
-  if (intersectionArea(shifted, guard) > intersectionArea(box, guard)) {
-    return box;
+function limitAgainstElement(box, guard, dx) {
+  const level = box.y < guard.y + guard.height && box.y + box.height > guard.y;
+  if (!level) return dx;
+  if (dx < 0) {
+    const room2 = box.x - (guard.x + guard.width);
+    return room2 <= 0 ? 0 : -Math.min(-dx, room2);
   }
-  return shifted;
+  const room = guard.x - (box.x + box.width);
+  return room <= 0 ? 0 : Math.min(dx, room);
+}
+function nudgeIntoBand(box, guard, band) {
+  if (!band || band.width <= 0) return box;
+  const overhangLeft = band.x - box.x;
+  const overhangRight = box.x + box.width - (band.x + band.width);
+  let dx = 0;
+  if (overhangLeft > 0) dx = overhangLeft;
+  else if (overhangRight > 0) dx = -overhangRight;
+  if (!dx) return box;
+  dx = limitAgainstElement(box, guard, dx);
+  if (!dx) return box;
+  return { ...box, x: box.x + dx };
 }
 function renderAnnotation(svg, rect, noteOptions, style, seed = 1, layout = {}) {
   if (!noteOptions?.text) return null;
-  const viewport = layout.viewport ?? null;
+  const band = layout.band ?? null;
   const position = isValidPosition(noteOptions.position) ? noteOptions.position : "top-right";
   const random = createRandom(seed + 9);
-  const note = createNoteText(svg, noteOptions.text, style);
+  const note = createNoteText(svg, noteOptions.text, style, {
+    wordsPerLine: noteOptions.wordsPerLine
+  });
   const tilt = (random() - 0.45) * 7;
   const tiltPad = Math.abs(Math.sin(tilt * Math.PI / 180)) * note.width * 0.5;
   const size = {
     width: note.width,
-    height: note.ascent + note.descent + (noteOptions.underline === false ? 0 : 5)
+    height: note.height + (noteOptions.underline === false ? 0 : 5)
   };
   const gap = (layout.gap ?? NOTE_GAP) + random() * 6;
-  const placed = placeNote(
+  const placed = boxForPosition(
     rect,
     position,
     { width: size.width, height: size.height + tiltPad },
-    gap,
-    viewport
+    gap
   );
+  const shifted = {
+    ...placed,
+    x: placed.x + (Number(noteOptions.offset?.x) || 0),
+    y: placed.y + (Number(noteOptions.offset?.y) || 0)
+  };
   const guard = inflateRect(rect, gap * 0.7);
-  const outer = clampToViewport(
-    { ...placed.box, height: size.height + tiltPad },
-    guard,
-    viewport
-  );
+  const outer = nudgeIntoBand(shifted, guard, band);
   const box = {
     x: outer.x,
     y: outer.y + tiltPad / 2,
     width: size.width,
-    height: note.ascent + note.descent
+    height: note.height
   };
   placeNoteText(note, box, style, seed, {
     tilt,
     underline: noteOptions.underline !== false
   });
-  return { group: note.group, box: inflateRect(outer, 4), position: placed.position };
+  return { group: note.group, box: inflateRect(outer, 4), position };
 }
 function drawDot(parent, x, y, style, scale = 1.7) {
   appendPath(parent, `M ${x.toFixed(2)} ${y.toFixed(2)} l 0.01 0`, {
@@ -23029,14 +23155,11 @@ function ensureHandwrittenFont() {
   document.head.appendChild(link);
 }
 var instances = /* @__PURE__ */ new WeakMap();
-function localViewport(overlayRect, inset = 8) {
+function localBand(overlayRect, inset = 8) {
   const width = window.innerWidth || document.documentElement.clientWidth || 0;
-  const height = window.innerHeight || document.documentElement.clientHeight || 0;
   return {
     x: -overlayRect.x + inset,
-    y: -overlayRect.y + inset,
-    width: Math.max(0, width - inset * 2),
-    height: Math.max(0, height - inset * 2)
+    width: Math.max(0, width - inset * 2)
   };
 }
 var DoodleOverlay = class {
@@ -23135,8 +23258,8 @@ var DoodleOverlay = class {
     };
     const noteGroups = [];
     const noteLayout = {
-      viewport: localViewport(overlayRect),
-      gap: this.options.arrow ? 32 : 14
+      band: localBand(overlayRect),
+      gap: this.options.arrow ? 40 : 14
     };
     targets.forEach((target, index) => {
       const absolute = absoluteRects[index];
@@ -23392,8 +23515,17 @@ function App() {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       react_default,
       {
-        note: { text: "fun with friends", position: "top-right" },
-        arrow: true,
+        note: {
+          text: "fun with friends",
+          position: "top-right",
+          offset: { x: 100, y: 0 }
+        },
+        arrow: {
+          from: "bottom",
+          to: "right",
+          style: "looped"
+          // offset: { x: 100, y: 0 },
+        },
         decorations: true,
         padding: 10,
         roughness: 1.65,
@@ -23404,11 +23536,20 @@ function App() {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       react_default,
       {
-        note: { text: "start chat", position: "right" },
-        arrow: { from: "right", to: "edge", style: "curved" },
+        note: {
+          text: "start chat",
+          position: "right",
+          offset: { x: 100, y: 0 }
+        },
+        arrow: {
+          from: "left",
+          to: "edge",
+          style: "looped"
+          // offset: { x: 100, y: 0 },
+        },
         decorations: true,
         addBreaks: true,
-        padding: -10,
+        padding: 0,
         roughness: 1.55,
         strokeWidth: 1.35,
         children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FindButton, {})

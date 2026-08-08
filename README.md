@@ -180,11 +180,34 @@ doodle(".cta", {
 
 Positions: `top`, `top-right`, `right`, `bottom-right`, `bottom`, `bottom-left`, `left`, `top-left`. Same names apply to `arrow.from`/`arrow.to`.
 
-The position is a preference, not a command. Notes are measured from their real
-glyph metrics and laid out so they never sit on top of the element — if the
-preferred side would run off screen, the note flips to a side that fits. The
-underline is drawn to the measured text width; set `underline: false` for plain
-handwriting.
+Notes are measured from their real glyph metrics and laid out so they never sit
+on top of the element. The underline is drawn to the measured text width; set
+`underline: false` for plain handwriting.
+
+**The side you ask for is the side you get.** When a note runs past the edge of
+the viewport it slides horizontally by exactly the amount it overhangs, so a
+narrowing viewport walks it gradually inward instead of snapping it to the
+opposite side. The only limit is the element itself: a note level with it stops
+once they meet, rather than sliding across it.
+
+Vertical placement is fixed relative to the element and does not react to
+scrolling, so a note stays pinned to what it annotates instead of crawling back
+into view as the page moves. A note beside an element that is itself jammed
+against the viewport edge has nowhere to slide, so it may sit partly off screen
+— use a different `position` or an `offset` there.
+
+Nudge a note off its computed spot with `offset`:
+
+```javascript
+doodle(".cta", {
+  note: { text: "start chat", position: "top", offset: { x: 40, y: -12 } },
+});
+```
+
+The offset moves the note from the spot `position` chose, and staying in view is
+judged from there — so a large offset slides back into the viewport rather than
+carrying the note off screen. Vertical offsets are always applied verbatim,
+since vertical placement never reacts to the viewport.
 
 ## Arrows
 
@@ -193,17 +216,36 @@ doodle(".cta", { arrow: true });
 
 doodle(".cta", {
   arrow: {
-    from: "top-right",
+    from: "top-right", // note | any position name
     to: "center",
-    style: "curved", // curved | straight | dotted
+    style: "curved",   // curved | straight | dotted | looped
   },
 });
 ```
 
-When the element also has a `note`, the arrow ignores `from` and launches from
-the note itself. `to: "edge"` (the default) lands the tip just *outside* the
-frame; `to: "center"` is the one setting that deliberately points into the
-element.
+`looped` ties a curl into the middle of the sweep — the hand-drawn flourish that
+doubles back on itself before reaching the tip.
+
+`from` decides where the arrow leaves. **With a note it names a side of the
+note** — where the pen lifts off the handwriting — and the arrow then travels to
+the element wherever that is:
+
+```javascript
+doodle(".cta", {
+  note: { text: "start chat", position: "top-right" },
+  arrow: { from: "bottom-left" }, // leaves the note's bottom-left corner
+});
+```
+
+`"note"` is the default and picks the side of the note facing the element. A
+callout always departs from its note, so moving the note with `offset` takes the
+arrow with it rather than leaving it stranded by the element.
+
+Without a note there is no handwriting to leave from, so `from` falls back to
+naming a side of the element itself.
+
+`to: "edge"` (the default) lands the tip just *outside* the frame; `to: "center"`
+is the one setting that deliberately points into the element.
 
 ## Decorations
 
