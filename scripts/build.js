@@ -5,7 +5,7 @@ mkdirSync("dist", { recursive: true });
 
 const targets = [
   { entry: "src/index.js", name: "freehand-ui" },
-  // React is a peer dependency — never bundled, so the host app's copy is used
+  // React is a peer dependency - never bundled, so the host app's copy is used
   { entry: "src/react.js", name: "react", external: ["react"] },
 ];
 

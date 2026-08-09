@@ -27,7 +27,7 @@ test("exports a component and a hook", () => {
 
 test("renders a shrink-wrapping wrapper around its children", () => {
   const { html, warnings } = renderSSR(
-    createElement(Doodle, null, createElement("button", null, "Find"))
+    createElement(Doodle, null, createElement("button", null, "Find")),
   );
 
   // inline-flex, not inline-block: an inline-block wrapper adds baseline
@@ -55,8 +55,8 @@ test("option props never reach the DOM", () => {
         className: "wrap",
         "data-testid": "x",
       },
-      createElement("button", null, "Find")
-    )
+      createElement("button", null, "Find"),
+    ),
   );
 
   for (const leaked of [
@@ -80,8 +80,8 @@ test("as and style override the wrapper", () => {
     createElement(
       Doodle,
       { as: "div", style: { display: "block", margin: 4 } },
-      "hi"
-    )
+      "hi",
+    ),
   );
 
   assert.match(html, /^<div/);
@@ -113,7 +113,7 @@ test("detectBorderRadius borrows the radius of a tightly wrapped child", () => {
     // Its own radius always wins
     assert.equal(detectBorderRadius(node(24, 200, 80)), 24);
 
-    // A layout-only wrapper hugging one child inherits it — this is what keeps
+    // A layout-only wrapper hugging one child inherits it - this is what keeps
     // a wrapped pill from being drawn as a rectangle
     assert.equal(detectBorderRadius(node(0, 160, 48, [pill])), 999);
 
@@ -123,7 +123,7 @@ test("detectBorderRadius borrows the radius of a tightly wrapped child", () => {
     // and only for a sole child
     assert.equal(
       detectBorderRadius(node(0, 160, 48, [pill, node(8, 160, 48)])),
-      0
+      0,
     );
   } finally {
     globalThis.getComputedStyle = original;

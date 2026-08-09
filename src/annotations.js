@@ -41,7 +41,7 @@ function boxForPosition(rect, position, size, gap) {
 /**
  * Cap a horizontal shift so it can never slide the note onto the element.
  *
- * Only bites for a note sitting level with the element — one above or below it
+ * Only bites for a note sitting level with the element - one above or below it
  * is already clear vertically and may slide as far as it needs to.
  *
  * @param {import('./geometry.js').Rect} box
@@ -50,8 +50,7 @@ function boxForPosition(rect, position, size, gap) {
  * @returns {number} the part of it that is safe
  */
 function limitAgainstElement(box, guard, dx) {
-  const level =
-    box.y < guard.y + guard.height && box.y + box.height > guard.y;
+  const level = box.y < guard.y + guard.height && box.y + box.height > guard.y;
   if (!level) return dx;
 
   if (dx < 0) {
@@ -114,7 +113,7 @@ export function renderAnnotation(
   noteOptions,
   style,
   seed = 1,
-  layout = {}
+  layout = {},
 ) {
   if (!noteOptions?.text) return null;
 
@@ -144,11 +143,11 @@ export function renderAnnotation(
     rect,
     position,
     { width: size.width, height: size.height + tiltPad },
-    gap
+    gap,
   );
 
   // The offset moves the note off the spot `position` chose. It is applied
-  // before the band check so that check sees where the note actually ends up —
+  // before the band check so that check sees where the note actually ends up -
   // nudging first and offsetting after meant a note only started sliding once
   // its *un-offset* position ran out of room, and the offset could then push it
   // straight back off screen.

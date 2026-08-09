@@ -24,7 +24,7 @@ export interface DoodleOwnProps extends DoodleOptionProps {
   children?: ReactNode;
   /** Wrapper element to render. Default `"span"`. */
   as?: ElementType;
-  /** Skip drawing entirely — useful for reduced-motion or feature flags. */
+  /** Skip drawing entirely - useful for reduced-motion or feature flags. */
   disabled?: boolean;
   /**
    * Selector for decorating descendants instead of the wrapper as a whole.
@@ -52,7 +52,7 @@ export type DoodleProps<T extends ElementType = "span"> = DoodleOwnProps &
  * decorated individually unless you opt in with `childSelector`.
  */
 declare const Doodle: <T extends ElementType = "span">(
-  props: DoodleProps<T>
+  props: DoodleProps<T>,
 ) => JSX.Element;
 
 export default Doodle;
@@ -62,5 +62,5 @@ export { Doodle };
 export function useDoodle(
   ref: RefObject<Element | null>,
   options?: DoodleOptions,
-  enabled?: boolean
+  enabled?: boolean,
 ): void;

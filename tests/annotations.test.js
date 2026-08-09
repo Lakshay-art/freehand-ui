@@ -32,10 +32,10 @@ const band = { x: 0, width: 500 };
 /** Element sitting in the middle of the band. */
 const element = { x: 180, y: 0, width: 160, height: 60 };
 
-/** A note above it — vertically clear, so free to slide. */
+/** A note above it - vertically clear, so free to slide. */
 const above = (x) => ({ x, y: -50, width: 140, height: 30 });
 
-/** A note level with it — sliding inward eventually hits the element. */
+/** A note level with it - sliding inward eventually hits the element. */
 const beside = (x) => ({ x, y: 15, width: 140, height: 30 });
 
 test("a note is never moved vertically to stay on screen", () => {
@@ -59,7 +59,7 @@ test("a note slides by exactly what it overhangs, keeping its side", () => {
 
 test("sliding tracks the space available rather than snapping", () => {
   // Walking the band's right edge inward should walk the note inward with it,
-  // one pixel at a time — this is what makes a narrowing viewport feel smooth
+  // one pixel at a time - this is what makes a narrowing viewport feel smooth
   const box = above(400);
 
   for (const width of [540, 520, 500, 480]) {
@@ -83,7 +83,7 @@ test("a note level with the element stops before covering it", () => {
   assert.ok(shifted.x < box.x, "moved inward");
   assert.ok(
     shifted.x >= element.x + element.width,
-    "stopped at the element rather than sliding over it"
+    "stopped at the element rather than sliding over it",
   );
 });
 
@@ -98,7 +98,11 @@ afterEach(() => {
 });
 
 test("an offset note is kept in view on its own terms", () => {
-  const note = { text: "fun with friends", position: "top", offset: { x: 300 } };
+  const note = {
+    text: "fun with friends",
+    position: "top",
+    offset: { x: 300 },
+  };
   const roomy = place(note, { x: 0, width: 2000 });
 
   // A band that only the *offset* position overruns. Sliding used to be judged
@@ -108,11 +112,11 @@ test("an offset note is kept in view on its own terms", () => {
 
   assert.ok(
     squeezed.x < roomy.x,
-    `expected the offset note to slide back, got ${squeezed.x} vs ${roomy.x}`
+    `expected the offset note to slide back, got ${squeezed.x} vs ${roomy.x}`,
   );
   assert.ok(
     squeezed.x + squeezed.width <= tight.x + tight.width + 4,
-    "and to end up inside the band"
+    "and to end up inside the band",
   );
 });
 
@@ -121,7 +125,7 @@ test("an offset is honoured verbatim when there is room", () => {
   const plain = place({ text: "fun with friends", position: "top" }, band);
   const moved = place(
     { text: "fun with friends", position: "top", offset: { x: 120, y: -40 } },
-    band
+    band,
   );
 
   assert.equal(Math.round(moved.x - plain.x), 120);

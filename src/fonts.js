@@ -11,7 +11,7 @@ let requested = false;
  * Load the handwriting webfont once per page.
  *
  * Without this the notes ask for a font nobody loaded and fall back to the
- * generic `cursive` family — Apple Chancery on macOS, a calligraphic serif that
+ * generic `cursive` family - Apple Chancery on macOS, a calligraphic serif that
  * does not read as handwriting at all. Consuming apps have no reason to know
  * they need to load Caveat, so the library does it itself.
  *
@@ -23,7 +23,7 @@ export function ensureHandwrittenFont() {
   if (typeof document === "undefined" || !document.head) return;
   requested = true;
 
-  // Already available — self-hosted @font-face, next/font, or a second doodle
+  // Already available - self-hosted @font-face, next/font, or a second doodle
   try {
     if (document.fonts?.check?.(`600 19px "${FONT_NAME}"`)) return;
   } catch {
@@ -39,7 +39,7 @@ export function ensureHandwrittenFont() {
   document.head.appendChild(link);
 }
 
-/** Test seam — lets a suite exercise the injection more than once. */
+/** Test seam - lets a suite exercise the injection more than once. */
 export function resetHandwrittenFont() {
   requested = false;
 }

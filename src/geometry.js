@@ -51,7 +51,7 @@ export function detectBorderRadius(element) {
   const own = averageCornerRadius(element);
   if (own > 0) return own;
 
-  // A layout-only wrapper — the React <Doodle> span, an <a> around a button —
+  // A layout-only wrapper - the React <Doodle> span, an <a> around a button -
   // has no radius of its own. Borrow it from a sole child it fits tightly
   // around, so the doodle still follows the shape people actually see. Without
   // this a wrapped pill button gets drawn as a rectangle.
@@ -168,7 +168,7 @@ export function rectsOverlap(a, b) {
 }
 
 /**
- * Area of `box` that falls outside `bounds` — used to keep notes on screen.
+ * Area of `box` that falls outside `bounds` - used to keep notes on screen.
  * @param {Rect} box
  * @param {Rect | null} bounds
  * @returns {number}
@@ -192,7 +192,7 @@ export function nearestPointOnRect(rect, point) {
 }
 
 /**
- * Distance from a point to a rounded rectangle's outline — positive outside.
+ * Distance from a point to a rounded rectangle's outline - positive outside.
  * Testing an axis-aligned box against the bounding box instead would report the
  * empty space off a rounded corner as a collision.
  * @param {{ x: number, y: number }} point

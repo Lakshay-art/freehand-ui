@@ -93,7 +93,7 @@ function createWave(random, period, amplitude) {
 }
 
 /**
- * Gently bowed hand-drawn line. Endpoints stay exact — arrowheads and
+ * Gently bowed hand-drawn line. Endpoints stay exact - arrowheads and
  * underlines depend on that.
  * @param {number} x1
  * @param {number} y1
@@ -184,7 +184,7 @@ function roundedRectOutline(x, y, width, height, radius, spacing) {
 
   const total = segments.reduce((sum, seg) => sum + seg.length, 0);
   const points = [];
-  // Indices where a straight edge begins — the natural place for a pen to
+  // Indices where a straight edge begins - the natural place for a pen to
   // start and finish, so the overlap hides in a corner instead of mid-edge.
   const edgeStarts = [];
 
@@ -239,7 +239,7 @@ export function generateHandDrawnRectPaths(
   radius,
   roughness,
   random,
-  opts = {}
+  opts = {},
 ) {
   if (width <= 0 || height <= 0) return [];
 
@@ -250,7 +250,7 @@ export function generateHandDrawnRectPaths(
     width,
     height,
     radius,
-    spacing
+    spacing,
   );
 
   const count = points.length;
@@ -266,7 +266,7 @@ export function generateHandDrawnRectPaths(
   let startIndex = Math.floor((opts.startAt ?? random()) * count);
   if (opts.snapToEdge && edgeStarts.length) {
     startIndex = edgeStarts.reduce((best, index) =>
-      Math.abs(index - startIndex) < Math.abs(best - startIndex) ? index : best
+      Math.abs(index - startIndex) < Math.abs(best - startIndex) ? index : best,
     );
   }
 
@@ -291,8 +291,7 @@ export function generateHandDrawnRectPaths(
     drawn = Math.min(snapped - startIndex, count);
   }
 
-  const tail =
-    portion >= 1 ? Math.max(1, Math.round(overshoot / step)) : 0;
+  const tail = portion >= 1 ? Math.max(1, Math.round(overshoot / step)) : 0;
 
   const breaks = opts.breaks ?? [];
   const runs = [];
@@ -313,7 +312,7 @@ export function generateHandDrawnRectPaths(
     // Index-based arc length keeps the wave continuous across the wrap
     let offset = wave((startIndex + k) * step);
 
-    // The overlapping tail drifts a hair off the line, like a real pen —
+    // The overlapping tail drifts a hair off the line, like a real pen -
     // any more and the overlap reads as a stray second stroke.
     if (tail > 0 && k > drawn) {
       offset += ((k - drawn) / tail) * 0.5;
@@ -338,7 +337,7 @@ function isBroken(fraction, breaks) {
   return breaks.some((gap) =>
     gap.end > gap.start
       ? fraction >= gap.start && fraction < gap.end
-      : fraction >= gap.start || fraction < gap.end
+      : fraction >= gap.start || fraction < gap.end,
   );
 }
 
@@ -354,10 +353,7 @@ export function createBorderBreaks(perimeter, config, random) {
   if (!config || perimeter <= 0) return [];
 
   const settings = config === true ? {} : config;
-  const count = Math.max(
-    1,
-    Math.round(settings.count ?? 2 + random() * 3)
-  );
+  const count = Math.max(1, Math.round(settings.count ?? 2 + random() * 3));
   const min = Math.max(2, settings.min ?? 6);
   const max = Math.max(min, settings.max ?? 30);
 
@@ -366,11 +362,7 @@ export function createBorderBreaks(perimeter, config, random) {
   const breaks = [];
 
   for (let i = 0; i < count; i++) {
-    const length = Math.min(
-      min + random() * (max - min),
-      slice * 0.7,
-      budget
-    );
+    const length = Math.min(min + random() * (max - min), slice * 0.7, budget);
     if (length < 2) break;
     budget -= length;
 
@@ -395,7 +387,7 @@ export function generateHandDrawnRectPath(
   height,
   radius,
   roughness,
-  random
+  random,
 ) {
   const paths = generateHandDrawnRectPaths(
     x,
@@ -404,7 +396,7 @@ export function generateHandDrawnRectPath(
     height,
     radius,
     roughness,
-    random
+    random,
   );
   return paths.join(" ") + " Z";
 }
@@ -422,7 +414,7 @@ export function createGroup(parent, x, y, rotation = 0) {
   const group = document.createElementNS(SVG_NS, "g");
   group.setAttribute(
     "transform",
-    `translate(${fmt(x)} ${fmt(y)}) rotate(${rotation.toFixed(1)})`
+    `translate(${fmt(x)} ${fmt(y)}) rotate(${rotation.toFixed(1)})`,
   );
   parent.appendChild(group);
   return group;
@@ -476,7 +468,7 @@ export function drawBorder(svg, rect, options, seed) {
     ? createBorderBreaks(
         rectPerimeter(rect.width, rect.height, radius),
         options.breaks,
-        random
+        random,
       )
     : [];
   // Denser sampling so a small gap lands where it was asked for
@@ -497,7 +489,7 @@ export function drawBorder(svg, rect, options, seed) {
       snapToEdge: true,
       spacing,
       breaks,
-    }
+    },
   );
 
   for (const d of main) {
@@ -510,7 +502,7 @@ export function drawBorder(svg, rect, options, seed) {
 
   if (roughness < 0.9) return;
 
-  // Partial second pass, nudged outward — the "sketch density" of the reference
+  // Partial second pass, nudged outward - the "sketch density" of the reference
   const offset = 1.1 + random() * 0.9;
   const ghost = generateHandDrawnRectPaths(
     rect.x - offset,
@@ -527,7 +519,7 @@ export function drawBorder(svg, rect, options, seed) {
       snapToEdge: true,
       spacing,
       breaks,
-    }
+    },
   );
 
   for (const d of ghost) {
@@ -645,7 +637,7 @@ const TIP_GAP = 11;
 
 /**
  * Where a callout leaves its note. Notes are wide and short, so a note sitting
- * above the frame launches from the far end of its baseline — that is what
+ * above the frame launches from the far end of its baseline - that is what
  * produces the long diagonal sweep instead of a stubby vertical tick.
  * @param {import('./geometry.js').Rect} origin
  * @param {{ x: number, y: number }} target
@@ -661,7 +653,7 @@ export function arrowStartFromNote(origin, target, from) {
     const point = pointFromPosition(from, origin);
     const away = directionFromPosition(from);
 
-    // `center` — and any side whose point lands within the glyph box — would
+    // `center` - and any side whose point lands within the glyph box - would
     // start the shaft on top of the handwriting. Walk it out to the edge facing
     // the element first, so the arrow always leaves the text rather than
     // crossing it.
@@ -699,7 +691,7 @@ export function arrowStartFromNote(origin, target, from) {
 
 /**
  * Resolve arrow start/end. When the note's measured box is known the arrow
- * runs from the note to just outside the frame — never across the content.
+ * runs from the note to just outside the frame - never across the content.
  * @param {import('./geometry.js').Rect} rect
  * @param {object} arrowOptions
  * @param {() => number} random
@@ -719,7 +711,7 @@ function arrowEndpoints(rect, arrowOptions, random, origin) {
     : annotationAnchor(
         from === "note" ? "top-right" : from,
         rect,
-        38 + random() * 12
+        38 + random() * 12,
       );
 
   const toPos = arrowOptions.to || "edge";
@@ -739,7 +731,7 @@ function arrowEndpoints(rect, arrowOptions, random, origin) {
   }
 
   // Keep the gesture long enough to read as a sweep. Skipped when the arrow is
-  // anchored to a note — extending backwards would run the shaft over the text.
+  // anchored to a note - extending backwards would run the shaft over the text.
   const distance = Math.hypot(end.x - start.x, end.y - start.y);
   const minimum = 34;
   if (!anchored && distance < minimum) {
@@ -779,7 +771,7 @@ function drawArrowHead(svg, tip, angle, style, random, shaftLength = Infinity) {
         steps: 2,
         bow: 0.35 * side,
       }),
-      { ...style, dashed: false }
+      { ...style, dashed: false },
     );
   }
 }
@@ -821,7 +813,7 @@ export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
   const distance = Math.hypot(dx, dy) || 1;
   const dashed = arrowOptions.style === "dotted";
 
-  // Tangent at the tip — drives the arrowhead so it follows the curve
+  // Tangent at the tip - drives the arrowhead so it follows the curve
   let tipAngle = Math.atan2(dy, dx);
   let shaft;
   const hull = [start, end];
@@ -867,7 +859,7 @@ export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
         { x: c2x, y: c2y },
         end,
         radius,
-        random
+        random,
       );
 
       shaft = catmullRomPath(points, false);
@@ -932,10 +924,10 @@ export function drawUnderline(svg, x, y, width, style, random) {
       color: style.color,
       strokeWidth: style.strokeWidth * 0.95,
       opacity: style.opacity * 0.9,
-    }
+    },
   );
 
-  // Faint partial second pass — hand-drawn, not a ruled double line
+  // Faint partial second pass - hand-drawn, not a ruled double line
   const inset = width * (0.06 + random() * 0.12);
   const length = width * (0.62 + random() * 0.24);
   appendPath(
@@ -947,13 +939,13 @@ export function drawUnderline(svg, x, y, width, style, random) {
       y + 2.6 + slope * 0.6,
       style.roughness * 0.5,
       random,
-      { bow: (random() - 0.5) * 1.1, steps: 4 }
+      { bow: (random() - 0.5) * 1.1, steps: 4 },
     ),
     {
       color: style.color,
       strokeWidth: style.strokeWidth * 0.7,
       opacity: style.opacity * 0.38,
-    }
+    },
   );
 }
 
@@ -999,7 +991,7 @@ function measureWidth(element, content, fontSize) {
     const box = element.getBBox();
     if (box && box.width > 0) return box.width;
   } catch {
-    /* not rendered yet — fall through to the estimate */
+    /* not rendered yet - fall through to the estimate */
   }
 
   try {
@@ -1052,7 +1044,7 @@ export function createNoteText(svg, text, style, options = {}) {
   svg.appendChild(group);
 
   const lineWidths = tspans.map((tspan, index) =>
-    measureWidth(tspan, lines[index], fontSize)
+    measureWidth(tspan, lines[index], fontSize),
   );
   const width = Math.max(...lineWidths);
 
@@ -1099,11 +1091,11 @@ export function placeNoteText(note, box, style, seed, options = {}) {
   const cy = box.y + box.height / 2;
   note.group.setAttribute(
     "transform",
-    `rotate(${tilt.toFixed(2)} ${fmt(cx)} ${fmt(cy)})`
+    `rotate(${tilt.toFixed(2)} ${fmt(cx)} ${fmt(cy)})`,
   );
 
   if (options.underline !== false) {
-    // Underline the last line only, at that line's width — running it at the
+    // Underline the last line only, at that line's width - running it at the
     // width of the widest line would overshoot a short closing line.
     const lastWidth = note.lineWidths[note.lineWidths.length - 1] ?? box.width;
 
@@ -1118,7 +1110,7 @@ export function placeNoteText(note, box, style, seed, options = {}) {
         roughness: style.roughness || 1.4,
         opacity: style.opacity,
       },
-      random
+      random,
     );
   }
 
@@ -1141,7 +1133,7 @@ export function drawNote(svg, box, text, style, seed = 1, options = {}) {
     { ...box, width: note.width, height: note.height },
     style,
     seed,
-    options
+    options,
   );
   return note.textEl;
 }

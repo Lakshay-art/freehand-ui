@@ -16,7 +16,7 @@ import { intersectionArea, distanceToRoundedRect } from "./geometry.js";
  */
 
 /**
- * Round dot — a zero-length stroke with a round cap.
+ * Round dot - a zero-length stroke with a round cap.
  */
 function drawDot(parent, x, y, style, scale = 1.7) {
   appendPath(parent, `M ${x.toFixed(2)} ${y.toFixed(2)} l 0.01 0`, {
@@ -44,7 +44,7 @@ function drawHeart(parent, size, style, random) {
 
 /**
  * Four-point twinkle. The control points sit near the centre, which pinches
- * each side inward — that concave waist is what reads as a sparkle rather than
+ * each side inward - that concave waist is what reads as a sparkle rather than
  * a plus sign or a diamond.
  */
 function twinkle(parent, radiusX, radiusY, pinch, style) {
@@ -65,7 +65,7 @@ function twinkle(parent, radiusX, radiusY, pinch, style) {
 }
 
 /**
- * Slim, tall twinkle — the classic sparkle accent.
+ * Slim, tall twinkle - the classic sparkle accent.
  */
 function drawSparkle(parent, size, style, random) {
   twinkle(
@@ -73,12 +73,12 @@ function drawSparkle(parent, size, style, random) {
     size * (0.34 + random() * 0.1),
     size,
     size * (0.06 + random() * 0.06),
-    style
+    style,
   );
 }
 
 /**
- * Fuller four-point star — same construction, wider arms and a softer waist.
+ * Fuller four-point star - same construction, wider arms and a softer waist.
  */
 function drawStar(parent, size, style, random) {
   twinkle(
@@ -86,13 +86,13 @@ function drawStar(parent, size, style, random) {
     size * (0.66 + random() * 0.12),
     size,
     size * (0.2 + random() * 0.08),
-    style
+    style,
   );
 }
 
 /**
  * Solid five-point star. Each side is a quadratic whose control sits close to
- * the centre — at that radius the waist lands near the classic star proportion
+ * the centre - at that radius the waist lands near the classic star proportion
  * while the sides stay gently concave.
  */
 function drawTwinkle(parent, size, style, random) {
@@ -105,12 +105,11 @@ function drawTwinkle(parent, size, style, random) {
   });
 
   // Tips are computed up front so the two curves meeting at one share it
-  // exactly. Arm length and spacing both wander — a drawn star is never
+  // exactly. Arm length and spacing both wander - a drawn star is never
   // regular, and the unevenness is what stops it reading as clip art.
   const tips = [];
   for (let i = 0; i < count; i++) {
-    const angle =
-      first + (Math.PI * 2 * i) / count + (random() - 0.5) * 0.24;
+    const angle = first + (Math.PI * 2 * i) / count + (random() - 0.5) * 0.24;
     tips.push({ angle, ...at(angle, size * (0.8 + random() * 0.4)) });
   }
 
@@ -125,7 +124,7 @@ function drawTwinkle(parent, size, style, random) {
     // Waist depth varies per side, so some arms are fatter than others
     const control = at(
       from.angle + delta / 2 + (random() - 0.5) * 0.16,
-      size * (0.02 + random() * 0.13)
+      size * (0.02 + random() * 0.13),
     );
 
     path += ` Q ${control.x.toFixed(2)} ${control.y.toFixed(2)} ${to.x.toFixed(2)} ${to.y.toFixed(2)}`;
@@ -144,7 +143,7 @@ function drawTwinkle(parent, size, style, random) {
 }
 
 /**
- * Concentric arcs sweeping around a corner — the "motion" marks that hug a
+ * Concentric arcs sweeping around a corner - the "motion" marks that hug a
  * button's edge. Drawn around local up so the outward rotation aims them.
  */
 function drawArcs(parent, size, style, random) {
@@ -182,7 +181,7 @@ function drawArcs(parent, size, style, random) {
 function drawSmiley(parent, size, style, random) {
   const r = size * 0.92;
 
-  // Reuse the border generator — a rounded rect whose radius is half its side
+  // Reuse the border generator - a rounded rect whose radius is half its side
   // is a circle, and it comes with the same pen overlap as the frame
   const circle = generateHandDrawnRectPaths(
     -r,
@@ -197,7 +196,7 @@ function drawSmiley(parent, size, style, random) {
       overshoot: r * 0.55,
       spacing: Math.max(3, r * 0.45),
       startAt: random(),
-    }
+    },
   );
 
   for (const d of circle) {
@@ -210,12 +209,12 @@ function drawSmiley(parent, size, style, random) {
   appendPath(
     parent,
     `M ${(-r * 0.44).toFixed(2)} ${(r * 0.18).toFixed(2)} Q 0 ${(r * 0.72).toFixed(2)} ${(r * 0.44).toFixed(2)} ${(r * 0.18).toFixed(2)}`,
-    style
+    style,
   );
 }
 
 /**
- * Emphasis burst — strokes radiating from a focal point at diverging angles,
+ * Emphasis burst - strokes radiating from a focal point at diverging angles,
  * with a hollow centre and uneven lengths. Parallel same-length ticks read as
  * "|||"; the divergence is what makes it a burst.
  */
@@ -238,9 +237,9 @@ function drawEmphasis(parent, size, style, random, opts = {}) {
         Math.sin(angle) * outer,
         0.7,
         random,
-        { steps: 2, bow: (random() - 0.5) * 0.9 }
+        { steps: 2, bow: (random() - 0.5) * 0.9 },
       ),
-      { ...style, strokeWidth: style.strokeWidth * (0.85 + random() * 0.4) }
+      { ...style, strokeWidth: style.strokeWidth * (0.85 + random() * 0.4) },
     );
   }
 }
@@ -266,12 +265,12 @@ function drawStroke(parent, size, style, random) {
       bow: (random() - 0.5) * size * 0.35,
       steps: 4,
     }),
-    style
+    style,
   );
 }
 
 /**
- * Two rising wisps. Both lean the same way — mirrored wisps read as brackets
+ * Two rising wisps. Both lean the same way - mirrored wisps read as brackets
  * rather than steam.
  */
 function drawSteam(parent, size, style, random) {
@@ -284,7 +283,7 @@ function drawSteam(parent, size, style, random) {
     appendPath(
       parent,
       `M ${x.toFixed(2)} ${base.toFixed(2)} Q ${(x + lean * size * 0.52).toFixed(2)} ${(base - size * 0.62).toFixed(2)} ${(x + lean * size * 0.06).toFixed(2)} ${(base - size * 1.3).toFixed(2)}`,
-      style
+      style,
     );
   }
 }
@@ -362,7 +361,7 @@ function isClear(point, radius, blockers) {
  */
 function pickFrom(types, family, random) {
   const pool = types.filter(
-    (type) => family.includes(type) && DECORATION_DRAWERS[type]
+    (type) => family.includes(type) && DECORATION_DRAWERS[type],
   );
   if (!pool.length) return null;
   return pool[Math.floor(random() * pool.length)];
@@ -388,14 +387,14 @@ function markOpacity(style, traits, variation) {
 /**
  * The four rounded corners, each with the centre of its arc and the outward
  * diagonal. Marks are offset from the arc centre so they follow the real
- * silhouette — a pill's cap as faithfully as a card's corner.
+ * silhouette - a pill's cap as faithfully as a card's corner.
  * @param {import('./geometry.js').Rect} rect
  */
 function cornerAnchors(rect) {
   const radius = clamp(
     rect.radius ?? 0,
     0,
-    Math.min(rect.width, rect.height) / 2
+    Math.min(rect.width, rect.height) / 2,
   );
   const d = Math.SQRT1_2;
   const right = rect.x + rect.width - radius;
@@ -450,7 +449,7 @@ function placeAtCorner(svg, type, anchor, style, random, hasRoom) {
     createGroup(svg, point.x, point.y, tilt),
     size,
     { ...style, opacity: markOpacity(style, traits, 0.8 + random() * 0.18) },
-    random
+    random,
   );
 
   return true;
@@ -472,13 +471,13 @@ function renderCornerMarks(svg, rect, types, budget, style, random, hasRoom) {
         DECORATION_DRAWERS[type] &&
         !TEXT_TYPES.includes(type) &&
         !CORNER_ACCENTS.includes(type) &&
-        !CORNER_STARS.includes(type)
+        !CORNER_STARS.includes(type),
     );
     picks.push(...rest);
   }
   if (!picks.length) return;
 
-  // Only one family was offered — repeat it rather than under-filling `count`
+  // Only one family was offered - repeat it rather than under-filling `count`
   for (let i = 0; picks.length < budget; i++) {
     picks.push(picks[i % picks.length]);
   }
@@ -497,14 +496,14 @@ function renderCornerMarks(svg, rect, types, budget, style, random, hasRoom) {
       ? [...anchors].sort(
           (a, b) =>
             Math.hypot(b.cx - previous.cx, b.cy - previous.cy) -
-            Math.hypot(a.cx - previous.cx, a.cy - previous.cy)
+            Math.hypot(a.cx - previous.cx, a.cy - previous.cy),
         )
       : anchors;
 
     const anchor = ordered.find(
       (candidate) =>
         candidate !== previous &&
-        placeAtCorner(svg, type, candidate, style, random, hasRoom)
+        placeAtCorner(svg, type, candidate, style, random, hasRoom),
     );
 
     if (anchor) {
@@ -517,7 +516,7 @@ function renderCornerMarks(svg, rect, types, budget, style, random, hasRoom) {
 
 /**
  * Small components have no corner worth pointing at, so they get a mirrored
- * pair of two-stroke emphasis marks instead — one either side.
+ * pair of two-stroke emphasis marks instead - one either side.
  */
 function renderSideMarks(svg, rect, style, random, hasRoom) {
   const cy = rect.y + rect.height / 2;
@@ -540,12 +539,12 @@ function renderSideMarks(svg, rect, style, random, hasRoom) {
         svg,
         point.x,
         point.y,
-        outwardTilt(dir) + (random() - 0.5) * 12
+        outwardTilt(dir) + (random() - 0.5) * 12,
       ),
       size,
       { ...style, opacity: style.opacity * (0.82 + random() * 0.15) },
       random,
-      { count: 2, spread: 0.3 + random() * 0.14 }
+      { count: 2, spread: 0.3 + random() * 0.14 },
     );
   }
 }
@@ -563,20 +562,16 @@ function renderTextMark(svg, rect, note, types, style, random) {
 
   const traits = TYPE_TRAITS[type];
   const size = sizeFrom(traits.size, random);
-  const trailing =
-    note.x + note.width / 2 >= rect.x + rect.width / 2 ? 1 : -1;
+  const trailing = note.x + note.width / 2 >= rect.x + rect.width / 2 ? 1 : -1;
 
-  const x =
-    trailing > 0
-      ? note.x + note.width + size + 2
-      : note.x - size - 2;
+  const x = trailing > 0 ? note.x + note.width + size + 2 : note.x - size - 2;
   const y = note.y + note.height * 0.44;
 
   DECORATION_DRAWERS[type](
     createGroup(svg, x, y, (random() - 0.5) * traits.tilt),
     size,
     { ...style, opacity: markOpacity(style, traits, 0.85 + random() * 0.15) },
-    random
+    random,
   );
 
   return {
@@ -588,7 +583,7 @@ function renderTextMark(svg, rect, note, types, style, random) {
 }
 
 /**
- * A component too small to carry corner marks — chips, icon buttons.
+ * A component too small to carry corner marks - chips, icon buttons.
  * @param {import('./geometry.js').Rect} rect
  */
 function isSmall(rect) {
@@ -596,7 +591,7 @@ function isSmall(rect) {
 }
 
 /**
- * Compose sparse decorations around the frame — intentional, not chaotic.
+ * Compose sparse decorations around the frame - intentional, not chaotic.
  * @param {SVGElement} svg
  * @param {import('./geometry.js').Rect} rect
  * @param {{ count?: number | null, types?: string[] | null, style?: "corners" | "sides" }} decorationOptions
@@ -610,7 +605,7 @@ export function renderDecorations(
   decorationOptions,
   style,
   seed,
-  context = {}
+  context = {},
 ) {
   const random = createRandom(seed + 101);
   const types = decorationOptions.types?.length
@@ -619,20 +614,20 @@ export function renderDecorations(
 
   const avoid = [...(context.avoid ?? [])];
 
-  // Handwriting accents first — the mark it leaves becomes a no-go zone
+  // Handwriting accents first - the mark it leaves becomes a no-go zone
   const textMark = renderTextMark(
     svg,
     rect,
     context.note ?? null,
     types,
     style,
-    random
+    random,
   );
   if (textMark) avoid.push(textMark);
 
   const budget = Math.min(
     decorationOptions.count ?? MAX_BORDER_MARKS,
-    MAX_BORDER_MARKS
+    MAX_BORDER_MARKS,
   );
   if (budget < 1) return;
 

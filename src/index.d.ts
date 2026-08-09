@@ -24,7 +24,7 @@ export type DecorationType =
 export interface NoteOptions {
   text: string;
   /**
-   * Which side of the element the note sits on. Always honoured — a note that
+   * Which side of the element the note sits on. Always honoured - a note that
    * would run off screen slides horizontally to stay in view rather than
    * moving to another side.
    */
@@ -41,7 +41,7 @@ export interface NoteOptions {
 
 export interface ArrowOptions {
   /**
-   * Where the arrow leaves. With a `note` this names a side of *the note* —
+   * Where the arrow leaves. With a `note` this names a side of *the note* -
    * the arrow always departs from the handwriting and travels to the element,
    * however far an `offset` has moved it. `"note"` (the default) picks the side
    * facing the element. Without a note it names a side of the element instead.
@@ -88,8 +88,8 @@ export interface DoodleOptions {
   /** Lift the pen at random points around the outline. */
   addBreaks?: boolean | number | BreakOptions;
   /**
-   * Font stack for handwritten notes. Point this at your own family — a
-   * `next/font` CSS variable, for instance — to take over from the built-in one.
+   * Font stack for handwritten notes. Point this at your own family - a
+   * `next/font` CSS variable, for instance - to take over from the built-in one.
    */
   fontFamily?: string | null;
   /**
@@ -114,5 +114,5 @@ export interface DoodleInstance {
  */
 export function doodle(
   target: string | Element,
-  options?: DoodleOptions
+  options?: DoodleOptions,
 ): DoodleInstance;

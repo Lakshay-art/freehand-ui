@@ -1,4 +1,4 @@
-![freehand-ui — make your UI delightfully human](docs/images/hero.png)
+![freehand-ui - make your UI delightfully human](docs/images/hero.png)
 
 # Freehand-ui
 
@@ -6,7 +6,7 @@ Wrap any existing web element with a beautiful, responsive, hand-drawn doodle la
 
 ## What it does
 
-`freehand-ui` adds a subtle SVG overlay on top of your UI — thin pen strokes, handwritten notes, arrows, and small decorations. It does **not** change your HTML layout or block clicks (`pointer-events: none`).
+`freehand-ui` adds a subtle SVG overlay on top of your UI - thin pen strokes, handwritten notes, arrows, and small decorations. It does **not** change your HTML layout or block clicks (`pointer-events: none`).
 
 **Good for:** call-to-action buttons, feature cards, onboarding hints, playful marketing UI.
 
@@ -18,7 +18,7 @@ Wrap any existing web element with a beautiful, responsive, hand-drawn doodle la
 | **Decorations** | Corner accents, stars, hearts, and more                             |
 | **Responsive**  | Stays aligned on resize, scroll, and reflow                         |
 
-**Live on [Aznabee.com](https://aznabee.com)** — see it in production on the real product.
+**Live on [Aznabee.com](https://aznabee.com)** - see it in production on the real product.
 
 ## ![Basic hand-drawn border around a card](docs/images/basic.png)
 
@@ -65,7 +65,7 @@ doodle(".card", {
 });
 ```
 
-The frame traces the element's own edge by default. Raise `padding` to stand it off — `padding: 8` leaves a comfortable margin around a card.
+The frame traces the element's own edge by default. Raise `padding` to stand it off - `padding: 8` leaves a comfortable margin around a card.
 
 ### Handwriting font
 
@@ -122,8 +122,8 @@ Notes are measured from real glyph metrics and laid out so they never sit on top
 ### Placement behavior
 
 - **The side you ask for is the side you get.** When a note runs past the viewport edge it slides horizontally by exactly the amount it overhangs, so a narrowing viewport walks it gradually inward instead of snapping to the opposite side.
-- **Vertical placement is fixed** relative to the element and does not react to scrolling — a note stays pinned to what it annotates.
-- If an element is jammed against the viewport edge, a note may sit partly off screen — use a different `position` or an `offset` there.
+- **Vertical placement is fixed** relative to the element and does not react to scrolling - a note stays pinned to what it annotates.
+- If an element is jammed against the viewport edge, a note may sit partly off screen - use a different `position` or an `offset` there.
 
 Nudge a note with `offset`:
 
@@ -149,15 +149,15 @@ doodle(".cta", {
 });
 ```
 
-![Arrow styles — curved, straight, dotted, and looped](docs/images/arrows.png)
+![Arrow styles - curved, straight, dotted, and looped](docs/images/arrows.png)
 
-**Styles:** `curved` (default), `straight`, `dotted`, `looped` — `looped` adds a flourish that doubles back before reaching the tip.
+**Styles:** `curved` (default), `straight`, `dotted`, `looped` - `looped` adds a flourish that doubles back before reaching the tip.
 
 **`from`** decides where the arrow leaves:
 
-- **With a note** — names a side of the note (where the pen lifts off the handwriting), then travels to the element.
-- **`"note"`** (default) — picks the side of the note facing the element.
-- **Without a note** — `from` names a side of the element itself.
+- **With a note** - names a side of the note (where the pen lifts off the handwriting), then travels to the element.
+- **`"note"`** (default) - picks the side of the note facing the element.
+- **Without a note** - `from` names a side of the element itself.
 
 ```javascript
 doodle(".cta", {
@@ -176,19 +176,19 @@ doodle(".card", { decorations: true });
 doodle(".card", {
   decorations: {
     count: 2, // border marks, hard-capped at 2
-    style: "corners", // corners | sides — omit to pick automatically
+    style: "corners", // corners | sides - omit to pick automatically
     types: ["arcs", "twinkle", "heart"],
   },
 });
 ```
 
-![Decoration types — corner accents, stars, handwriting marks, and more](docs/images/decorations.png)
+![Decoration types - corner accents, stars, handwriting marks, and more](docs/images/decorations.png)
 
 A frame stays readable with **at most two marks around it**. Default composition:
 
-- **one corner accent** — `arcs` or `emphasis` — hugging a corner, aimed outward
-- **one corner star** — `twinkle` or `star` — on the corner farthest from it
-- **one handwriting accent** — `heart` or `sparkle` — beside the note, not the component
+- **one corner accent** - `arcs` or `emphasis` - hugging a corner, aimed outward
+- **one corner star** - `twinkle` or `star` - on the corner farthest from it
+- **one handwriting accent** - `heart` or `sparkle` - beside the note, not the component
 
 Corner marks follow the _rounded_ corner rather than the bounding box. Marks too large for their gap are pushed further out.
 
@@ -198,9 +198,9 @@ Corner marks follow the _rounded_ corner rather than the bounding box. Marks too
 
 ### Small components
 
-Chips and icon buttons get a mirrored pair of two-stroke `emphasis` marks — one either side — instead of corner marks. This is automatic when the element is under 48px on its short side or under 130px wide. `style: "sides"` forces it at any size; `style: "corners"` opts out.
+Chips and icon buttons get a mirrored pair of two-stroke `emphasis` marks - one either side - instead of corner marks. This is automatic when the element is under 48px on its short side or under 130px wide. `style: "sides"` forces it at any size; `style: "corners"` opts out.
 
-Other types — `star`, `smiley`, `dots`, `stroke`, `steam` — fill a corner slot when no accent or star was requested.
+Other types - `star`, `smiley`, `dots`, `stroke`, `steam` - fill a corner slot when no accent or star was requested.
 
 ### Child selector mode
 
@@ -221,7 +221,7 @@ instance.update(); // recalculate geometry and redraw
 instance.destroy(); // remove overlay and disconnect observers
 ```
 
-Calling `doodle()` twice on the same element replaces the previous overlay — no duplicates.
+Calling `doodle()` twice on the same element replaces the previous overlay - no duplicates.
 
 ---
 
@@ -239,9 +239,9 @@ import Doodle from "@aznabee/freehand-ui/react";
 </Doodle>;
 ```
 
-Ships `"use client"` — drops into the Next.js App Router without a wrapper, and renders on the server without warnings.
+Ships `"use client"` - drops into the Next.js App Router without a wrapper, and renders on the server without warnings.
 
-The doodle is drawn around **the wrapped component as a whole** — children are never decorated individually. To decorate descendants instead, opt in with `childSelector`:
+The doodle is drawn around **the wrapped component as a whole** - children are never decorated individually. To decorate descendants instead, opt in with `childSelector`:
 
 ```jsx
 <Doodle childSelector=".card">
@@ -275,7 +275,7 @@ Same options as `doodle()`, passed as props:
 
 `<Doodle>` renders a `<span style="display:inline-flex">` that shrink-wraps its child, so the frame hugs your component instead of stretching to the full width of its container. `inline-flex` specifically: an `inline-block` wrapper adds baseline leading beneath an inline-level child like a `<button>`, which would leave the frame visibly taller than the button.
 
-Override when you need different layout — extra props go to the DOM node:
+Override when you need different layout - extra props go to the DOM node:
 
 ```jsx
 <Doodle as="div" style={{ display: "block" }} className="w-full" note="hi">
@@ -315,7 +315,7 @@ const caveat = Caveat({ subsets: ["latin"], variable: "--font-caveat" });
 ### React notes
 
 - Inline object props (`note={{ text: "hi" }}`) are compared by value, so a re-render does not tear down and redraw the overlay with a new random seed.
-- `disabled` skips drawing entirely — useful behind a reduced-motion check or a feature flag.
+- `disabled` skips drawing entirely - useful behind a reduced-motion check or a feature flag.
 - TypeScript definitions ship with the package for both entry points.
 
 ---
@@ -343,11 +343,11 @@ Then open:
 
 ## Design principles
 
-- **Framework agnostic** — plain JavaScript at the core; React is an optional entry point
-- **SVG based** — hand-drawn paths, not CSS borders
-- **Non-invasive** — `pointer-events: none`, no layout changes
-- **Responsive** — `ResizeObserver`, scroll listeners, and `requestAnimationFrame`
-- **Lightweight** — zero runtime dependencies
+- **Framework agnostic** - plain JavaScript at the core; React is an optional entry point
+- **SVG based** - hand-drawn paths, not CSS borders
+- **Non-invasive** - `pointer-events: none`, no layout changes
+- **Responsive** - `ResizeObserver`, scroll listeners, and `requestAnimationFrame`
+- **Lightweight** - zero runtime dependencies
 
 ---
 

@@ -62,7 +62,7 @@ function collectOptions(props) {
 export function useDoodle(ref, options = {}, enabled = true) {
   // Inline object props (`note={{ text: "hi" }}`) are a new identity on every
   // render. Keying the effect on the serialised options stops the overlay from
-  // being torn down and redrawn — with a fresh random seed — each time.
+  // being torn down and redrawn - with a fresh random seed - each time.
   const key = useMemo(() => JSON.stringify(options ?? {}), [options]);
   const latest = useRef(options);
   latest.current = options;
@@ -100,7 +100,7 @@ function mergeRefs(...refs) {
  * </Doodle>
  * ```
  *
- * The doodle is drawn around the wrapper as a whole — children are never
+ * The doodle is drawn around the wrapper as a whole - children are never
  * decorated individually unless you opt in with `childSelector`. The overlay
  * itself is a fixed-position SVG on `document.body`, so it never affects the
  * layout or styling of what you wrap.
@@ -166,7 +166,7 @@ const Doodle = forwardRef(function Doodle(props, forwardedRef) {
       fontFamily,
       autoLoadFont,
       childSelector,
-    ]
+    ],
   );
 
   useDoodle(innerRef, options, !disabled);
@@ -178,12 +178,12 @@ const Doodle = forwardRef(function Doodle(props, forwardedRef) {
       ref: mergeRefs(innerRef, forwardedRef),
       className,
       // inline-flex shrink-wraps the child so the doodle hugs the component
-      // rather than a full-width block. Flex specifically — inline-block would
+      // rather than a full-width block. Flex specifically - inline-block would
       // add baseline leading under an inline-level child like a <button>,
       // leaving the frame taller than what it wraps. Override via `style`/`as`.
       style: { display: "inline-flex", ...style },
     },
-    children
+    children,
   );
 });
 
