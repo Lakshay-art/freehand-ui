@@ -1,44 +1,202 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>doodle-ui — decorations</title>
-    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
         min-height: 100vh;
         display: grid;
         place-items: center;
-        gap: 2rem;
-        background: #18181b;
+        padding: 3rem 1.5rem;
+        background: radial-gradient(
+          ellipse at 30% 20%,
+          #2a1458 0%,
+          #0b0b14 55%
+        );
         font-family: system-ui, sans-serif;
         color: #fff;
       }
-      .box {
-        width: 220px;
-        height: 120px;
-        border-radius: 12px;
-        background: rgba(255,255,255,0.05);
-        display: grid;
-        place-items: center;
+      h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.35rem;
+        font-weight: 600;
+        text-align: center;
+      }
+      .subtitle {
+        margin: 0 0 5rem;
+        text-align: center;
+        opacity: 0.65;
+        font-size: 0.95rem;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 5rem 4.5rem;
+        max-width: 1200px;
+      }
+      .demo {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .demo span {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        opacity: 0.55;
+      }
+      .card {
+        background: linear-gradient(
+          160deg,
+          rgba(120, 80, 255, 0.35),
+          rgba(20, 20, 40, 0.9)
+        );
+        box-shadow: 0 0 20px rgba(140, 90, 255, 0.18);
       }
     </style>
   </head>
   <body>
-    <div class="box" id="a">Hearts & stars</div>
-    <div class="box" id="b">Sparkles</div>
+    <div>
+      <h1>Decoration types</h1>
+      <p class="subtitle">Corner accents, stars, handwriting marks, and more</p>
+
+      <div class="row">
+        <div class="demo">
+          <div
+            class="card"
+            id="arcs"
+            style="width: 64px; height: 40px; border-radius: 8px"
+          ></div>
+          <span>Arcs</span>
+        </div>
+        <div class="demo">
+          <div
+            class="card"
+            id="emphasis"
+            style="width: 112px; height: 36px; border-radius: 999px"
+          ></div>
+          <span>Emphasis</span>
+        </div>
+        <div class="demo">
+          <div
+            class="card"
+            id="twinkle"
+            style="width: 52px; height: 52px; border-radius: 10px"
+          ></div>
+          <span>Twinkle</span>
+        </div>
+        <div class="demo">
+          <div
+            class="card"
+            id="star"
+            style="width: 80px; height: 48px; border-radius: 12px"
+          ></div>
+          <span>Star</span>
+        </div>
+        <div class="demo">
+          <div
+            class="card"
+            id="smiley"
+            style="width: 72px; height: 56px; border-radius: 14px"
+          ></div>
+          <span>Smiley</span>
+        </div>
+        <div class="demo">
+          <div
+            class="card"
+            id="dots"
+            style="width: 96px; height: 32px; border-radius: 999px"
+          ></div>
+          <span>Dots</span>
+        </div>
+        <div class="demo">
+          <div
+            class="card"
+            id="stroke"
+            style="width: 44px; height: 44px; border-radius: 50%"
+          ></div>
+          <span>Stroke</span>
+        </div>
+        <div class="demo">
+          <div
+            class="card"
+            id="steam"
+            style="width: 88px; height: 44px; border-radius: 10px"
+          ></div>
+          <span>Steam</span>
+        </div>
+        <div class="demo">
+          <div
+            class="card"
+            id="heart"
+            style="width: 76px; height: 48px; border-radius: 12px"
+          ></div>
+          <span>Heart</span>
+        </div>
+        <div class="demo">
+          <div
+            class="card"
+            id="sparkle"
+            style="width: 100px; height: 40px; border-radius: 999px"
+          ></div>
+          <span>Sparkle</span>
+        </div>
+      </div>
+    </div>
+
     <script type="module">
       import { doodle } from "../../dist/freehand-ui.js";
 
-      doodle("#a", {
-        decorations: { count: 3, types: ["heart", "star", "sparkle"] },
+      const shared = {
+        padding: 6,
+        roughness: 1.55,
+        strokeWidth: 1.2,
+      };
+
+      const corner = (type) => ({
+        decorations: { types: [type], count: 1, style: "corners" },
       });
 
-      doodle("#b", {
-        decorations: { count: 2, types: ["steam", "stroke", "smiley"] },
-        note: { text: "nice!", position: "bottom-right" },
+      doodle("#arcs", { ...shared, ...corner("arcs") });
+      doodle("#emphasis", { ...shared, ...corner("emphasis") });
+      doodle("#twinkle", { ...shared, ...corner("twinkle") });
+      doodle("#star", { ...shared, ...corner("star") });
+      doodle("#smiley", { ...shared, ...corner("smiley") });
+      doodle("#dots", { ...shared, ...corner("dots") });
+      doodle("#stroke", { ...shared, ...corner("stroke") });
+      doodle("#steam", { ...shared, ...corner("steam") });
+
+      const note = {
+        text: "nice!",
+        position: "left",
+        underline: false,
+      };
+
+      doodle("#heart", {
+        ...shared,
+        note,
+        arrow: { from: "center", style: "curved" },
+        decorations: { types: ["heart"], count: 0 },
+      });
+
+      doodle("#sparkle", {
+        ...shared,
+        note: { ...note, position: "right" },
+        arrow: { from: "center", style: "dotted" },
+        decorations: { types: ["sparkle"], count: 0 },
       });
     </script>
   </body>

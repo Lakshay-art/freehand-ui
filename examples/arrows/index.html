@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>doodle-ui — arrows</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 3rem 1.5rem;
+        background: radial-gradient(
+          ellipse at 30% 20%,
+          #2a1458 0%,
+          #0b0b14 55%
+        );
+        font-family: system-ui, sans-serif;
+        color: #fff;
+      }
+      h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.35rem;
+        font-weight: 600;
+        text-align: center;
+      }
+      .subtitle {
+        margin: 0 0 10.5rem;
+        text-align: center;
+        opacity: 0.65;
+        font-size: 0.95rem;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 3.5rem 2.5rem;
+        max-width: 960px;
+      }
+      .demo {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .demo span {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        opacity: 0.55;
+      }
+      .cta {
+        padding: 0.85rem 1.6rem;
+        border-radius: 999px;
+        border: none;
+        background: linear-gradient(90deg, #ff7a18, #ff3d81);
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.95rem;
+        cursor: pointer;
+        box-shadow: 0 0 24px rgba(255, 100, 60, 0.35);
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>Arrow styles</h1>
+      <p class="subtitle">Curved, straight, dotted, and looped pointers</p>
+
+      <div class="row">
+        <div class="demo">
+          <button class="cta" id="curved">Click me</button>
+          <span>Curved</span>
+        </div>
+        <div class="demo">
+          <button class="cta" id="straight">Click me</button>
+          <span>Straight</span>
+        </div>
+        <div class="demo">
+          <button class="cta" id="dotted">Click me</button>
+          <span>Dotted</span>
+        </div>
+        <div class="demo">
+          <button class="cta" id="looped">Click me</button>
+          <span>Looped</span>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { doodle } from "../../dist/freehand-ui.js";
+
+      const shared = {
+        note: {
+          text: "try me",
+          position: "top",
+          underline: false,
+          offset: { x: 0, y: -40 },
+        },
+        padding: 8,
+        roughness: 1.55,
+        strokeWidth: 1.35,
+      };
+
+      doodle("#curved", {
+        ...shared,
+        arrow: { style: "curved" },
+      });
+
+      doodle("#straight", {
+        ...shared,
+        arrow: { style: "straight" },
+      });
+
+      doodle("#dotted", {
+        ...shared,
+        arrow: { style: "dotted" },
+      });
+
+      doodle("#looped", {
+        ...shared,
+        arrow: { style: "looped" },
+      });
+    </script>
+  </body>
+</html>
