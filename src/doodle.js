@@ -4,6 +4,8 @@ import {
   scheduleFrame,
   cancelFrame,
   getScrollableAncestors,
+  insertOverlaySvg,
+  syncOverlayStacking,
 } from "./utils.js";
 import {
   getElementBounds,
@@ -74,7 +76,8 @@ class DoodleOverlay {
 
   mount() {
     this.svg = createOverlaySvg(0, 0, 0, 0);
-    document.body.appendChild(this.svg);
+    insertOverlaySvg(this.svg, this.element);
+    syncOverlayStacking(this.svg, this.element, this.options.zIndex);
 
     this.resizeObserver = new ResizeObserver(this.onResize);
     this.resizeObserver.observe(this.element);
@@ -156,6 +159,7 @@ class DoodleOverlay {
     const overlayRect = unionRects(absoluteRects, margin);
 
     clearSvg(this.svg);
+    syncOverlayStacking(this.svg, this.element, this.options.zIndex);
 
     this.svg.setAttribute("width", String(overlayRect.width));
     this.svg.setAttribute("height", String(overlayRect.height));

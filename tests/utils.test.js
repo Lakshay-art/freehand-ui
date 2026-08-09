@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergeOptions, createRandom, clamp, isValidPosition } from "../src/utils.js";
+import { mergeOptions, createRandom, clamp, isValidPosition, resolveOverlayZIndex, insertOverlaySvg } from "../src/utils.js";
 import { unionRects, pointFromPosition, relativeRect } from "../src/geometry.js";
 import {
   generateHandDrawnRectPath,
@@ -182,4 +182,39 @@ test("breaks split the outline into multiple strokes", () => {
   );
   assert.ok(broken.length > 1, "outline is cut into separate strokes");
   for (const d of broken) assert.match(d, /^M /);
+});
+
+test("resolveOverlayZIndex follows the target and allows overrides", () => {
+  const element = {
+    parentElement: null,
+  };
+
+  globalThis.getComputedStyle = () => ({
+    zIndex: "auto",
+    position: "static",
+  });
+
+  assert.equal(resolveOverlayZIndex(element, 42), 42);
+  assert.equal(resolveOverlayZIndex(element, null), null);
+
+  globalThis.getComputedStyle = () => ({
+    zIndex: "5",
+    position: "relative",
+  });
+  assert.equal(resolveOverlayZIndex(element, null), 6);
+});
+
+test("insertOverlaySvg mounts beside the target element", () => {
+  const parent = {
+    nodeType: 1,
+    insertBefore(svg, ref) {
+      this.lastInsert = { svg, ref };
+    },
+  };
+  const next = {};
+  const element = { parentNode: parent, nextSibling: next };
+  const svg = {};
+
+  insertOverlaySvg(svg, element);
+  assert.deepEqual(parent.lastInsert, { svg, ref: next });
 });

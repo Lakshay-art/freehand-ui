@@ -16,6 +16,11 @@ const DEFAULT_OPTIONS = {
   fontFamily: null,
   /** Fetch Caveat when the page has not provided it. */
   autoLoadFont: true,
+  /**
+   * Overlay stacking order. Omit to mirror the target element's z-index so
+   * doodles stay above the annotated element but below modals and other UI.
+   */
+  zIndex: null,
 };
 
 /**
@@ -162,4 +167,66 @@ export function getScrollableAncestors(element) {
 
   ancestors.push(window);
   return ancestors;
+}
+
+/**
+ * z-index for the overlay: one step above the target when it participates in
+ * stacking, otherwise `auto` and DOM order (inserted as next sibling) wins.
+ *
+ * @param {Element} element
+ * @param {number | null | undefined} override
+ * @returns {number | null}
+ */
+export function resolveOverlayZIndex(element, override) {
+  if (override != null) return override;
+
+  const { zIndex, position } = getComputedStyle(element);
+  if (zIndex !== "auto") {
+    const parsed = Number.parseInt(zIndex, 10);
+    if (Number.isFinite(parsed)) return parsed + 1;
+  }
+
+  // A positioned ancestor may carry the stacking order instead.
+  let node = element.parentElement;
+  while (node && node !== document.documentElement) {
+    const style = getComputedStyle(node);
+    if (style.zIndex !== "auto" && style.position !== "static") {
+      const parsed = Number.parseInt(style.zIndex, 10);
+      if (Number.isFinite(parsed)) return parsed + 1;
+    }
+    node = node.parentElement;
+  }
+
+  return null;
+}
+
+/**
+ * Mount the overlay beside the target so it shares the same stacking context
+ * instead of painting above every body-level modal.
+ *
+ * @param {SVGElement} svg
+ * @param {Element} element
+ */
+export function insertOverlaySvg(svg, element) {
+  const parent = element.parentNode;
+  if (!parent) {
+    document.body.appendChild(svg);
+    return;
+  }
+
+  parent.insertBefore(svg, element.nextSibling);
+}
+
+/**
+ * @param {SVGElement} svg
+ * @param {Element} element
+ * @param {number | null | undefined} zIndexOverride
+ */
+export function syncOverlayStacking(svg, element, zIndexOverride) {
+  const zIndex = resolveOverlayZIndex(element, zIndexOverride);
+  if (zIndex == null) {
+    svg.style.zIndex = "";
+  } else {
+    svg.style.zIndex = String(zIndex);
+  }
 }

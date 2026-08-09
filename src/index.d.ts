@@ -99,6 +99,11 @@ export interface DoodleOptions {
    * handwriting fallbacks.
    */
   autoLoadFont?: boolean;
+  /**
+   * Overlay stacking order. Omit to follow the target element's z-index so
+   * doodles stay above the annotated element but below modals and other UI.
+   */
+  zIndex?: number | null;
 }
 
 export interface DoodleInstance {

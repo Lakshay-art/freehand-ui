@@ -1159,7 +1159,6 @@ export function createOverlaySvg(left, top, width, height) {
   svg.style.height = `${height}px`;
   svg.style.pointerEvents = "none";
   svg.style.overflow = "visible";
-  svg.style.zIndex = "2147483646";
   return svg;
 }
 
