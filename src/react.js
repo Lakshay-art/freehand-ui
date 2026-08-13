@@ -32,6 +32,7 @@ const OPTION_KEYS = [
   "addBreaks",
   "fontFamily",
   "autoLoadFont",
+  "locale",
 ];
 
 /**
@@ -126,6 +127,7 @@ const Doodle = forwardRef(function Doodle(props, forwardedRef) {
     addBreaks,
     fontFamily,
     autoLoadFont,
+    locale,
     childSelector,
     ...rest
   } = props;
@@ -148,6 +150,7 @@ const Doodle = forwardRef(function Doodle(props, forwardedRef) {
         addBreaks,
         fontFamily,
         autoLoadFont,
+        locale,
         childSelector,
       }),
     [
@@ -165,6 +168,7 @@ const Doodle = forwardRef(function Doodle(props, forwardedRef) {
       JSON.stringify(addBreaks ?? null),
       fontFamily,
       autoLoadFont,
+      JSON.stringify(locale ?? null),
       childSelector,
     ],
   );

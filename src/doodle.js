@@ -21,10 +21,21 @@ import {
 import { renderAnnotation } from "./annotations.js";
 import { renderDecorations } from "./decorations.js";
 import { ensureHandwrittenFont } from "./fonts.js";
+import { resolveLocalizedText } from "./locale.js";
 
 /** @typedef {import('./utils.js').DoodleOptions} DoodleOptions */
 
 const instances = new WeakMap();
+
+/**
+ * Monotonic clock for animation phase. The overlay is rebuilt on every scroll
+ * and resize, so animations are placed by age rather than restarted.
+ */
+function now() {
+  return typeof performance !== "undefined" && performance.now
+    ? performance.now()
+    : Date.now();
+}
 
 /**
  * The readable horizontal band, in the overlay's local coordinates.
@@ -62,13 +73,17 @@ class DoodleOverlay {
     this.element = element;
     this.options = options;
     this.seed = Math.floor(Math.random() * 1e9);
+    // Animations are anchored to this, not to the redraw that happens to be
+    // painting them - see `now()`
+    this.startedAt = now();
     this.svg = null;
     this.resizeObserver = null;
     this.mutationObserver = null;
     this.pendingFrame = null;
-    this.scrollTargets = [];
+    this.listeners = [];
     this.onScroll = this.scheduleUpdate.bind(this);
     this.onResize = this.scheduleUpdate.bind(this);
+    this.onLanguageChange = this.scheduleUpdate.bind(this);
     this.childElements = [];
 
     this.mount();
@@ -95,11 +110,24 @@ class DoodleOverlay {
 
     for (const target of getScrollableAncestors(this.element)) {
       target.addEventListener("scroll", this.onScroll, { passive: true });
-      this.scrollTargets.push({ target, type: "scroll" });
+      this.listeners.push({ target, type: "scroll", handler: this.onScroll });
     }
 
     window.addEventListener("resize", this.onResize, { passive: true });
-    this.scrollTargets.push({ target: window, type: "resize" });
+    this.listeners.push({
+      target: window,
+      type: "resize",
+      handler: this.onResize,
+    });
+
+    // A multilingual note follows the browser's language list, which the user
+    // can change while the page is open - redraw so the note keeps up.
+    window.addEventListener("languagechange", this.onLanguageChange);
+    this.listeners.push({
+      target: window,
+      type: "languagechange",
+      handler: this.onLanguageChange,
+    });
 
     if (
       this.options.note &&
@@ -151,6 +179,9 @@ class DoodleOverlay {
 
     const targets = this.getTargets();
     const margin = this.overlayMargin();
+    // Every stroke is rebuilt on each update, so animations are handed the
+    // overlay's age and pick up where the last pass left off
+    const elapsed = now() - this.startedAt;
 
     const absoluteRects = targets.map((target) =>
       getElementBounds(target, padding, radius)
@@ -220,7 +251,8 @@ class DoodleOverlay {
             this.options.arrow,
             strokeStyle,
             seed,
-            note ? note.box : null
+            note ? note.box : null,
+            { elapsed }
           )
         : null;
 
@@ -254,7 +286,9 @@ class DoodleOverlay {
     const { note, arrow, decorations } = this.options;
     if (!note && !arrow && !decorations) return 48;
 
-    const text = typeof note?.text === "string" ? note.text : "";
+    // Sized from the string that will actually be drawn: translations of the
+    // same note differ in length, sometimes by half again.
+    const { text } = resolveLocalizedText(note?.text, note?.locale);
     return Math.max(96, Math.min(240, 80 + text.length * 8));
   }
 
@@ -279,10 +313,10 @@ class DoodleOverlay {
       this.onFontsLoaded = null;
     }
 
-    for (const { target, type } of this.scrollTargets) {
-      target.removeEventListener(type, type === "scroll" ? this.onScroll : this.onResize);
+    for (const { target, type, handler } of this.listeners) {
+      target.removeEventListener(type, handler);
     }
-    this.scrollTargets = [];
+    this.listeners = [];
 
     if (this.svg?.parentNode) {
       this.svg.parentNode.removeChild(this.svg);

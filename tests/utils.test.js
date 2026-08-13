@@ -13,7 +13,12 @@ test("mergeOptions applies defaults and normalizes note", () => {
   const options = mergeOptions({ note: "hello" });
   assert.equal(options.border, true);
   assert.equal(options.color, "#ffffff");
-  assert.deepEqual(options.note, { text: "hello", position: "top-right" });
+  assert.deepEqual(options.note, {
+    text: "hello",
+    position: "top-right",
+    // Nothing asked for, so the note follows whatever the visitor reads
+    locale: null,
+  });
 });
 
 test("the frame traces the element's edge unless padding is asked for", () => {

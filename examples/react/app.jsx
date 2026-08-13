@@ -68,6 +68,8 @@ function App() {
           from: "left",
           to: "edge",
           style: "looped",
+          // Draws on quicker, then leans in once and stays there
+          animate: { speed: 1.6, repeat: false },
           // offset: { x: 100, y: 0 },
         }}
         decorations

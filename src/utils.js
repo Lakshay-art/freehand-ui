@@ -1,3 +1,6 @@
+import { normalizeArrowAnimation } from "./animation.js";
+import { isLocaleMap } from "./locale.js";
+
 const DEFAULT_OPTIONS = {
   border: true,
   color: "#ffffff",
@@ -16,6 +19,11 @@ const DEFAULT_OPTIONS = {
   fontFamily: null,
   /** Fetch Caveat when the page has not provided it. */
   autoLoadFont: true,
+  /**
+   * Language for a note written in more than one. Omit to follow the visitor's
+   * own languages, which is what their operating system is set to.
+   */
+  locale: null,
   /**
    * Overlay stacking order. Omit to mirror the target element's z-index so
    * doodles stay above the annotated element but below modals and other UI.
@@ -45,8 +53,21 @@ export function resolveElement(target) {
 export function mergeOptions(options = {}) {
   const merged = { ...DEFAULT_OPTIONS, ...options };
 
-  if (merged.note && typeof merged.note === "string") {
-    merged.note = { text: merged.note, position: "top-right" };
+  if (merged.note) {
+    // A bare string is the note. So is a bare `{ en: "hi", fr: "salut" }` - a
+    // map of languages is a way of writing the text, not a note config.
+    const config =
+      typeof merged.note === "string" || isLocaleMap(merged.note)
+        ? { text: merged.note }
+        : merged.note;
+
+    merged.note = {
+      ...config,
+      position: config.position ?? "top-right",
+      // The note carries the chosen language, so `renderAnnotation` can resolve
+      // a multilingual note on its own.
+      locale: config.locale ?? merged.locale ?? null,
+    };
   }
 
   if (merged.arrow) {
@@ -59,6 +80,9 @@ export function mergeOptions(options = {}) {
       from: config.from ?? (merged.note ? "note" : "top-right"),
       to: config.to ?? "edge",
       style: config.style ?? "curved",
+      // Arrows draw themselves on and lean toward their target by default;
+      // `animate: false` opts out, an object tunes speed and gestures
+      animate: normalizeArrowAnimation(config.animate),
     };
   }
 

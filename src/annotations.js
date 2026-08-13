@@ -1,6 +1,7 @@
 import { inflateRect, directionFromPosition } from "./geometry.js";
 import { createNoteText, placeNoteText } from "./renderer.js";
 import { isValidPosition, createRandom } from "./utils.js";
+import { resolveLocalizedText } from "./locale.js";
 
 // Clear space kept between the frame and the note's glyph box
 const NOTE_GAP = 14;
@@ -101,7 +102,7 @@ export function nudgeIntoBand(box, guard, band) {
 /**
  * @param {SVGElement} svg
  * @param {import('./geometry.js').Rect} rect
- * @param {{ text: string, position?: string, underline?: boolean, offset?: { x?: number, y?: number } }} noteOptions
+ * @param {{ text: string | Record<string, string>, position?: string, underline?: boolean, offset?: { x?: number, y?: number }, locale?: string | string[] | null }} noteOptions
  * @param {{ color: string, opacity: number, strokeWidth?: number, roughness?: number }} style
  * @param {number} [seed]
  * @param {{ band?: { x: number, width: number } | null, gap?: number }} [layout]
@@ -115,7 +116,12 @@ export function renderAnnotation(
   seed = 1,
   layout = {},
 ) {
-  if (!noteOptions?.text) return null;
+  // The text may be written in several languages; only one of them is drawn.
+  const { text, locale } = resolveLocalizedText(
+    noteOptions?.text,
+    noteOptions?.locale,
+  );
+  if (!text) return null;
 
   const band = layout.band ?? null;
 
@@ -124,8 +130,9 @@ export function renderAnnotation(
     : "top-right";
 
   const random = createRandom(seed + 9);
-  const note = createNoteText(svg, noteOptions.text, style, {
+  const note = createNoteText(svg, text, style, {
     wordsPerLine: noteOptions.wordsPerLine,
+    locale,
   });
 
   const tilt = (random() - 0.45) * 7;

@@ -21,8 +21,17 @@ export type DecorationType =
   | "stroke"
   | "steam";
 
+/**
+ * Note text, either written once or written per language.
+ *
+ * A map is keyed by BCP-47 tag - `en`, `pt-BR`, `zh-Hant` - plus an optional
+ * `default` for visitors whose language is not covered. Without one, the first
+ * translation written is used.
+ */
+export type LocalizedText = string | Record<string, string>;
+
 export interface NoteOptions {
-  text: string;
+  text: LocalizedText;
   /**
    * Which side of the element the note sits on. Always honoured - a note that
    * would run off screen slides horizontally to stay in view rather than
@@ -37,6 +46,34 @@ export interface NoteOptions {
    * running off screen.
    */
   offset?: { x?: number; y?: number };
+  /**
+   * Language to write this note in, overriding the top-level `locale` and the
+   * visitor's own languages. Only meaningful when `text` is a map.
+   */
+  locale?: string | string[] | null;
+}
+
+export interface ArrowAnimationOptions {
+  /**
+   * Reveal the stroke with a dash sweep, so the pen appears to travel from the
+   * note to the tip. Default `true`. A `dotted` arrow spends its dash pattern
+   * on the dots, so those flow toward the tip instead of being drawn on.
+   */
+  draw?: boolean;
+  /** Lean the arrow a few px toward what it points at. Default `true`. */
+  drift?: boolean;
+  /** Multiplier over every duration - `2` plays twice as fast. Default `1`. */
+  speed?: number;
+  /** How long the shaft takes to draw, ms, before `speed`. Default `900`. */
+  duration?: number;
+  /** Wait before the first stroke appears, ms. Default `150`. */
+  delay?: number;
+  /** How far the lean travels, px. Default `5`. */
+  distance?: number;
+  /** One full lean-and-return, ms. Default `2200`. */
+  driftDuration?: number;
+  /** Keep leaning. `false` settles once and stays put. Default `true`. */
+  repeat?: boolean;
 }
 
 export interface ArrowOptions {
@@ -50,6 +87,12 @@ export interface ArrowOptions {
   /** `"edge"` lands just outside the frame; `"center"` points into it. */
   to?: DoodlePosition | "edge";
   style?: "curved" | "straight" | "dotted" | "looped";
+  /**
+   * Motion for the arrow. On by default - the shaft draws itself on and the
+   * whole mark leans toward its target. `false` draws it static. Respects
+   * `prefers-reduced-motion`.
+   */
+  animate?: boolean | ArrowAnimationOptions;
 }
 
 export interface DecorationOptions {
@@ -82,7 +125,7 @@ export interface DoodleOptions {
   opacity?: number;
   /** Selector for decorating descendants instead of the element itself. */
   children?: string | null;
-  note?: string | NoteOptions | null;
+  note?: LocalizedText | NoteOptions | null;
   arrow?: boolean | ArrowOptions;
   decorations?: boolean | DecorationOptions;
   /** Lift the pen at random points around the outline. */
@@ -99,6 +142,15 @@ export interface DoodleOptions {
    * handwriting fallbacks.
    */
   autoLoadFont?: boolean;
+  /**
+   * Which language a multilingual `note` is written in. Omit to follow the
+   * visitor's own languages - `navigator.languages`, which is what their
+   * operating system is set to - falling back to the document's `lang`.
+   *
+   * Set it to drive notes from your app's own i18n state instead. Accepts a
+   * list, in preference order.
+   */
+  locale?: string | string[] | null;
   /**
    * Overlay stacking order. Omit to follow the target element's z-index so
    * doodles stay above the annotated element but below modals and other UI.

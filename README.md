@@ -14,8 +14,9 @@ Wrap any existing web element with a beautiful, responsive, hand-drawn doodle la
 | --------------- | ------------------------------------------------------------------- |
 | **Border**      | Hand-drawn frame that follows the element's shape and border-radius |
 | **Notes**       | Caveat handwriting beside the element                               |
-| **Arrows**      | Curved, straight, dotted, or looped pointers into the element       |
+| **Arrows**      | Curved, straight, dotted, or looped pointers that draw themselves in |
 | **Decorations** | Corner accents, stars, hearts, and more                             |
+| **Localised**   | Notes in the visitor's own language, right-to-left included         |
 | **Responsive**  | Stays aligned on resize, scroll, and reflow                         |
 
 **Live on [Aznabee.com](https://aznabee.com)** - see it in production on the real product.
@@ -62,6 +63,7 @@ doodle(".card", {
   addBreaks: false, // lift the pen at random points around the outline
   fontFamily: null, // override the handwriting stack
   autoLoadFont: true,
+  locale: null, // language for a multilingual note; defaults to the visitor's
 });
 ```
 
@@ -119,6 +121,54 @@ doodle(".cta", {
 
 Notes are measured from real glyph metrics and laid out so they never sit on top of the element. The underline is drawn to the measured text width; set `underline: false` for plain handwriting.
 
+### Notes in the visitor's language
+
+Write the note once per language and it is drawn in the one the visitor reads - taken from `navigator.languages`, which is what their operating system is set to. No configuration, no i18n library.
+
+```javascript
+doodle(".cta", {
+  note: {
+    en: "start chat",
+    "pt-BR": "iniciar conversa",
+    hi: "चैट शुरू करें",
+    ar: "ابدأ الدردشة",
+    default: "start chat", // for languages you have not covered
+  },
+});
+
+// with the rest of the note's options
+doodle(".cta", {
+  note: {
+    text: { en: "try me", fr: "essaie-moi" },
+    position: "bottom-right",
+  },
+});
+```
+
+Keys are BCP-47 tags. Matching follows what the visitor asked for, most wanted language first:
+
+- **Exact tag** - `pt-BR` for a `pt-BR` reader.
+- **Less specific** - `zh-Hant-TW` takes `zh-Hant` over a bare `zh`, so the script is only given up after the region.
+- **A sibling of the same language** - `en-AU` reads `en-GB` rather than dropping to another language.
+- **`default`**, or failing that the first translation written.
+
+Each wanted language is exhausted before the next is tried, so a `fr, en` visitor gets any French on offer ahead of the English original. The page's own `<html lang>` is consulted last, behind the visitor's list.
+
+Take over from the browser - to follow your app's own i18n state - with `locale`:
+
+```javascript
+doodle(".cta", {
+  note: { en: "start chat", fr: "démarrer le chat" },
+  locale: i18n.language, // or a list, in preference order
+});
+```
+
+Notes are redrawn when the browser fires `languagechange`, so switching language mid-session updates them without a reload.
+
+**Right-to-left** notes need no flag. The base direction is read off the text itself, by its first strong character - the rule behind `dir="auto"` - so an Arabic or Hebrew note is laid out and underlined right-to-left whether it came from a locale map or a plain string.
+
+Caveat itself only ships Latin and Cyrillic. Devanagari, Arabic, CJK and the rest fall through to the system handwriting stack and, past that, to whatever the browser picks - so those notes are legible but not handwritten. Point `fontFamily` at a face that covers your script to keep the handwriting.
+
 ### Placement behavior
 
 - **The side you ask for is the side you get.** When a note runs past the viewport edge it slides horizontally by exactly the amount it overhangs, so a narrowing viewport walks it gradually inward instead of snapping to the opposite side.
@@ -151,7 +201,9 @@ doodle(".cta", {
 
 ![Arrow styles - curved, straight, dotted, and looped](docs/images/arrows.png)
 
-**Styles:** `curved` (default), `straight`, `dotted`, `looped` - `looped` adds a flourish that doubles back before reaching the tip.
+**Styles:** `curved` (default), `straight`, `dotted`, `looped` - `looped` ties a curl into the sweep, crossing the shaft once on the inside of its bow.
+
+Every arc sweeps _over_ the straight line and drops onto its target, the way a hand draws one. With nothing to steer around, that side is fixed rather than picked at random, so a redraw never mirrors the gesture.
 
 **`from`** decides where the arrow leaves:
 
@@ -167,6 +219,43 @@ doodle(".cta", {
 ```
 
 **`to`:** `"edge"` (default) lands the tip just outside the frame; `"center"` points into the element.
+
+### Arrow animation
+
+Arrows animate by default. Two gestures, both pure CSS:
+
+- **draw** - the shaft is revealed by winding its dash offset down to zero, so the pen appears to travel from the note to the tip. The arrowhead flicks in as the pen arrives.
+- **drift** - the whole arrow leans a few pixels along its own line of travel, toward what it points at.
+
+```javascript
+doodle(".cta", { arrow: { style: "looped" } }); // both, at defaults
+
+doodle(".cta", { arrow: { animate: false } }); // draw it static
+
+doodle(".cta", {
+  arrow: {
+    animate: {
+      draw: true, // dash sweep along the shaft
+      drift: true, // lean toward the target
+      speed: 1, // multiplier over every duration - 2 is twice as fast
+      duration: 900, // shaft draw, ms, before `speed`
+      delay: 150, // wait before the first stroke appears, ms
+      distance: 5, // how far the lean travels, px
+      driftDuration: 2200, // one full lean-and-return, ms
+      repeat: true, // false leans in once and stays there
+    },
+  },
+});
+```
+
+`speed` scales every phase at once, so the whole gesture keeps its shape - use it in preference to setting durations individually.
+
+A `dotted` arrow spends its dash pattern on the dots, and one pattern cannot both space them and hide the undrawn tail, so its dots flow toward the tip instead of the shaft being drawn on.
+
+Notes:
+
+- **`prefers-reduced-motion: reduce` turns both gestures off** and leaves the arrow fully drawn.
+- The overlay is rebuilt on every scroll and resize. Animations are placed by how long the overlay has been on the page rather than restarted, so scrolling never replays a draw or jolts a lean mid-cycle.
 
 ### Decorations
 
@@ -311,6 +400,22 @@ const caveat = Caveat({ subsets: ["latin"], variable: "--font-caveat" });
   <Button />
 </Doodle>;
 ```
+
+### Localised notes
+
+Same as the core - a map of languages goes straight in as the note, and `locale` hands the choice to your own i18n state:
+
+```jsx
+<Doodle note={{ en: "start chat", fr: "démarrer le chat" }}>
+  <Button />
+</Doodle>;
+
+<Doodle note={{ en: "start chat", fr: "démarrer le chat" }} locale={i18n.language}>
+  <Button />
+</Doodle>;
+```
+
+Server-rendered markup is unaffected: the overlay is drawn in an effect, so the language is read on the client and there is nothing to mismatch on hydration.
 
 ### React notes
 

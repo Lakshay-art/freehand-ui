@@ -46,6 +46,10 @@
         gap: 3.5rem 2.5rem;
         max-width: 960px;
       }
+      /* Room for the next row's notes and arrows, which sit above its buttons */
+      .row + .row {
+        margin-top: 9rem;
+      }
       .demo {
         display: flex;
         flex-direction: column;
@@ -75,7 +79,10 @@
   <body>
     <div>
       <h1>Arrow styles</h1>
-      <p class="subtitle">Curved, straight, dotted, and looped pointers</p>
+      <p class="subtitle">
+        Curved, straight, dotted, and looped pointers - each drawing itself on
+        and leaning toward what it points at
+      </p>
 
       <div class="row">
         <div class="demo">
@@ -93,6 +100,21 @@
         <div class="demo">
           <button class="cta" id="looped">Click me</button>
           <span>Looped</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="demo">
+          <button class="cta" id="fast">Click me</button>
+          <span>Looped &middot; speed 2</span>
+        </div>
+        <div class="demo">
+          <button class="cta" id="settle">Click me</button>
+          <span>Looped &middot; one lean</span>
+        </div>
+        <div class="demo">
+          <button class="cta" id="static">Click me</button>
+          <span>Looped &middot; no animation</span>
         </div>
       </div>
     </div>
@@ -130,6 +152,23 @@
       doodle("#looped", {
         ...shared,
         arrow: { style: "looped" },
+      });
+
+      // Twice as quick, and a longer lean
+      doodle("#fast", {
+        ...shared,
+        arrow: { style: "looped", animate: { speed: 2, distance: 9 } },
+      });
+
+      // Draws on, leans in once, and stays there
+      doodle("#settle", {
+        ...shared,
+        arrow: { style: "looped", animate: { repeat: false } },
+      });
+
+      doodle("#static", {
+        ...shared,
+        arrow: { style: "looped", animate: false },
       });
     </script>
   </body>

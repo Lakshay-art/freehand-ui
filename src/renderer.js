@@ -6,8 +6,11 @@ import {
   directionFromPosition,
   pointOnBoxToward,
 } from "./geometry.js";
+import { animateArrow } from "./animation.js";
+import { isRtlText } from "./locale.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+const XML_NS = "http://www.w3.org/XML/1998/namespace";
 
 // Caveat is loaded by the library (see fonts.js). The rest are system
 // handwriting faces, so an app that blocks the webfont still gets something
@@ -562,6 +565,10 @@ function cubicTangentAt(p0, c1, c2, p3, t) {
   };
 }
 
+// How far off the stroke the curl's centre sits, as a fraction of its radius.
+// Under 1 the curl crosses the stroke; at 1 it would only touch it.
+const STRADDLE = 0.75;
+
 /**
  * The base curve with a curl tied into it: the pen sweeps along, loops once
  * around a small circle, and carries on to the tip.
@@ -572,11 +579,22 @@ function cubicTangentAt(p0, c1, c2, p3, t) {
  * @param {{ x: number, y: number }} end
  * @param {number} radius
  * @param {() => number} random
+ * @param {number} side which side of the path the curl sits on: `1` is the side
+ *   the path's normal points to (its heading turned a quarter turn clockwise on
+ *   screen), `-1` the other. The curl turns the same way round, so the sign also
+ *   decides whether it reads as clockwise or anticlockwise.
  * @returns {{ x: number, y: number }[]}
  */
-function loopedCurvePoints(start, c1, c2, end, radius, random) {
+export function loopedCurvePoints(
+  start,
+  c1,
+  c2,
+  end,
+  radius,
+  random,
+  side = 1,
+) {
   const at = (t) => cubicAt(start, c1, c2, end, t);
-  const tangentAt = (t) => normalize(cubicTangentAt(start, c1, c2, end, t));
 
   const knot = 0.46 + random() * 0.12;
   const points = [];
@@ -584,14 +602,21 @@ function loopedCurvePoints(start, c1, c2, end, radius, random) {
   const lead = Math.max(2, Math.round(knot * 16));
   for (let i = 0; i <= lead; i++) points.push(at((knot * i) / lead));
 
-  // Curl sits to one side of the path, so the stroke crosses itself once
   const pivot = at(knot);
-  const heading = tangentAt(knot);
+  const derivative = cubicTangentAt(start, c1, c2, end, knot);
+  // Distance the base curve covers per unit of t here - what converts the
+  // ground the curl makes up into a parameter to rejoin the curve at
+  const speed = Math.hypot(derivative.x, derivative.y) || 1;
+  const heading = normalize(derivative);
   const normal = { x: -heading.y, y: heading.x };
-  const side = random() < 0.5 ? 1 : -1;
+
+  // The curl straddles the stroke instead of hanging off it: the centre sits
+  // well inside a radius of the path, so on the way round the pen comes back
+  // across its own line. That crossing is what reads as a loop - a circle
+  // merely tangent to the shaft looks like a bubble stuck on the side of it.
   const centre = {
-    x: pivot.x + normal.x * radius * side,
-    y: pivot.y + normal.y * radius * side,
+    x: pivot.x + normal.x * radius * STRADDLE * side,
+    y: pivot.y + normal.y * radius * STRADDLE * side,
   };
 
   const from = Math.atan2(pivot.y - centre.y, pivot.x - centre.x);
@@ -601,18 +626,43 @@ function loopedCurvePoints(start, c1, c2, end, radius, random) {
   for (let i = 1; i <= steps; i++) {
     const progress = i / steps;
     const angle = from + turns * progress * side;
-    // Drift along the path while looping so the curl opens instead of closing
+    // Widening from the pivot, and drifting along the path as it winds, so the
+    // curl opens the way a hand opens it instead of closing on itself
+    const spread = radius * (STRADDLE + (1 - STRADDLE) * progress);
     const drift = radius * 0.55 * progress;
 
     points.push({
-      x: centre.x + Math.cos(angle) * radius + heading.x * drift,
-      y: centre.y + Math.sin(angle) * radius + heading.y * drift,
+      x: centre.x + Math.cos(angle) * spread + heading.x * drift,
+      y: centre.y + Math.sin(angle) * spread + heading.y * drift,
     });
   }
 
+  // Rejoin the base curve level with where the curl let the pen out, rather
+  // than at a fixed fraction of it. The drift carries the pen forward as it
+  // winds, so resuming from the pivot would step backwards first - a visible
+  // hitch where the stroke doubles back before carrying on to the tip.
+  const exit = points[points.length - 1];
+  const gained =
+    (exit.x - pivot.x) * heading.x + (exit.y - pivot.y) * heading.y;
+  const resume = Math.min(knot + Math.max(0, gained) / speed, 0.985);
+
+  // The curl leaves the pen on the far side of the shaft - the crossing - so
+  // the tail swings back onto the base curve over its first few steps. Dropping
+  // onto it in one step instead leaves a corner hanging off the loop.
+  const rejoin = at(resume);
+  const residual =
+    (exit.x - rejoin.x) * normal.x + (exit.y - rejoin.y) * normal.y;
+  const settle = 6;
+
   const tail = 14;
   for (let i = 1; i <= tail; i++) {
-    points.push(at(knot + (1 - knot) * (i / tail)));
+    const point = at(resume + (1 - resume) * (i / tail));
+    const fade = Math.max(0, 1 - i / settle);
+
+    points.push({
+      x: point.x + normal.x * residual * fade,
+      y: point.y + normal.y * residual * fade,
+    });
   }
 
   return points;
@@ -758,6 +808,7 @@ function drawArrowHead(svg, tip, angle, style, random, shaftLength = Infinity) {
   // whole mark reads as a hook rather than an arrow.
   const length = Math.min(9 + style.strokeWidth * 1.4, shaftLength * 0.3);
   const spread = 0.46 + random() * 0.1;
+  const arms = [];
 
   for (const side of [-1, 1]) {
     const armAngle = angle + spread * side;
@@ -765,15 +816,33 @@ function drawArrowHead(svg, tip, angle, style, random, shaftLength = Infinity) {
       x: tip.x - length * Math.cos(armAngle),
       y: tip.y - length * Math.sin(armAngle),
     };
-    appendPath(
-      svg,
-      roughLine(tail.x, tail.y, tip.x, tip.y, style.roughness * 0.5, random, {
-        steps: 2,
-        bow: 0.35 * side,
-      }),
-      { ...style, dashed: false },
+    arms.push(
+      appendPath(
+        svg,
+        roughLine(tail.x, tail.y, tip.x, tip.y, style.roughness * 0.5, random, {
+          steps: 2,
+          bow: 0.35 * side,
+        }),
+        { ...style, dashed: false },
+      ),
     );
   }
+
+  return arms;
+}
+
+/**
+ * Which way to bow a shaft that has nothing to steer around: the side that
+ * arches it over the straight line rather than sagging below it.
+ *
+ * @param {{ x: number, y: number }} perpendicular unit normal of the chord
+ * @returns {1 | -1} multiplier for `perpendicular`
+ */
+export function bowOverTheTop(perpendicular) {
+  // A near-vertical shaft has no "over" - either side arcs the same amount, so
+  // it leans out to the right of the page instead
+  if (Math.abs(perpendicular.y) < 0.02) return perpendicular.x > 0 ? 1 : -1;
+  return perpendicular.y > 0 ? -1 : 1;
 }
 
 /**
@@ -803,8 +872,18 @@ function boundsOf(points) {
  * @param {{ color: string, strokeWidth: number, roughness: number, opacity: number }} style
  * @param {number} seed
  * @param {import('./geometry.js').Rect | null} [origin]
+ * @param {{ elapsed?: number }} [context] how long the overlay has been on the
+ *   page, so a redraw can resume an animation instead of restarting it
  */
-export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
+export function drawArrow(
+  svg,
+  rect,
+  arrowOptions,
+  style,
+  seed,
+  origin = null,
+  context = {},
+) {
   const random = createRandom(seed + 17);
   const { start, end } = arrowEndpoints(rect, arrowOptions, random, origin);
 
@@ -816,6 +895,8 @@ export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
   // Tangent at the tip - drives the arrowhead so it follows the curve
   let tipAngle = Math.atan2(dy, dx);
   let shaft;
+  // Faint second pass over the shaft, drawn when the pen is rough enough
+  let ghost = null;
   const hull = [start, end];
 
   if (arrowOptions.style === "straight") {
@@ -831,8 +912,10 @@ export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
       y: rect.y + rect.height / 2 - mid.y,
     };
     // Bow away from the element. When the shaft points almost straight at the
-    // centre the two sides are equally "away" and the dot product is noise, so
-    // fall back to the seeded choice instead of letting rounding decide.
+    // centre the two sides are equally "away" and the dot product is noise -
+    // which is the common case for a note sitting diagonally off its element,
+    // since the tip already lands on the near edge and the rest of the element
+    // lies beyond it rather than to one side.
     const lateral =
       perpendicular.x * towardCenter.x + perpendicular.y * towardCenter.y;
     const sign =
@@ -840,9 +923,10 @@ export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
         ? lateral > 0
           ? -1
           : 1
-        : random() < 0.5
-          ? -1
-          : 1;
+        : // Nothing to steer around, so sweep over the top: a hand arcs above
+          // the straight line and drops onto the target, and a coin flip here
+          // used to mirror the whole gesture from one redraw to the next.
+          bowOverTheTop(perpendicular);
     const bow = Math.min(distance * (0.16 + random() * 0.08), 30) * sign;
 
     const c1x = start.x + dx * 0.28 + perpendicular.x * bow;
@@ -853,6 +937,10 @@ export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
 
     if (arrowOptions.style === "looped") {
       const radius = clamp(distance * 0.11, 7, 17);
+      // The curl belongs to the same wrist movement as the sweep, so it turns
+      // the way the sweep already turns: on the inside of the bow. Curling it
+      // outward instead unwinds the gesture - the loop fights the arc rather
+      // than continuing it.
       const points = loopedCurvePoints(
         start,
         { x: c1x, y: c1y },
@@ -860,6 +948,7 @@ export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
         end,
         radius,
         random,
+        -sign,
       );
 
       shaft = catmullRomPath(points, false);
@@ -869,35 +958,49 @@ export function drawArrow(svg, rect, arrowOptions, style, seed, origin = null) {
       const last = points[points.length - 1];
       const prior = points[points.length - 2] ?? start;
       tipAngle = Math.atan2(last.y - prior.y, last.x - prior.x);
+    } else {
+      shaft = `M ${fmt(start.x)} ${fmt(start.y)} C ${fmt(c1x)} ${fmt(c1y)} ${fmt(c2x)} ${fmt(c2y)} ${fmt(end.x)} ${fmt(end.y)}`;
 
-      appendPath(svg, shaft, { ...style, dashed });
-      drawArrowHead(svg, end, tipAngle, style, random, distance);
-      return { start, end, bounds: boundsOf(hull) };
+      if (style.roughness >= 1.1) {
+        const drift = () => (random() - 0.5) * 1.4;
+        ghost = `M ${fmt(start.x + drift())} ${fmt(start.y + drift())} C ${fmt(c1x + drift())} ${fmt(c1y + drift())} ${fmt(c2x + drift())} ${fmt(c2y + drift())} ${fmt(end.x + drift() * 0.4)} ${fmt(end.y + drift() * 0.4)}`;
+      }
+
+      tipAngle = Math.atan2(end.y - c2y, end.x - c2x);
     }
+  }
 
-    shaft = `M ${fmt(start.x)} ${fmt(start.y)} C ${fmt(c1x)} ${fmt(c1y)} ${fmt(c2x)} ${fmt(c2y)} ${fmt(end.x)} ${fmt(end.y)}`;
+  // Own group, so the arrow can lean toward its target as one mark
+  const group = document.createElementNS(SVG_NS, "g");
+  svg.appendChild(group);
 
-    if (style.roughness >= 1.1) {
-      const drift = () => (random() - 0.5) * 1.4;
-      const ghost = `M ${fmt(start.x + drift())} ${fmt(start.y + drift())} C ${fmt(c1x + drift())} ${fmt(c1y + drift())} ${fmt(c2x + drift())} ${fmt(c2y + drift())} ${fmt(end.x + drift() * 0.4)} ${fmt(end.y + drift() * 0.4)}`;
-      appendPath(svg, ghost, {
+  const shaftPaths = [];
+
+  if (ghost) {
+    shaftPaths.push(
+      appendPath(group, ghost, {
         ...style,
         opacity: style.opacity * 0.3,
         strokeWidth: style.strokeWidth * 0.7,
         dashed,
-      });
-    }
-
-    tipAngle = Math.atan2(end.y - c2y, end.x - c2x);
+      }),
+    );
   }
 
-  appendPath(svg, shaft, { ...style, dashed });
+  shaftPaths.push(appendPath(group, shaft, { ...style, dashed }));
 
-  drawArrowHead(svg, end, tipAngle, style, random, distance);
+  const head = drawArrowHead(group, end, tipAngle, style, random, distance);
+
+  animateArrow(
+    group,
+    { shaft: shaftPaths, head, start, end },
+    arrowOptions.animate,
+    context.elapsed,
+  );
 
   const bounds = boundsOf(hull);
 
-  return { start, end, bounds };
+  return { start, end, bounds, group };
 }
 
 /**
@@ -1010,12 +1113,18 @@ function measureWidth(element, content, fontSize) {
  * @param {SVGElement} svg
  * @param {string} text
  * @param {{ color: string, opacity: number, fontSize?: number }} style
- * @returns {{ group: SVGGElement, textEl: SVGTextElement, width: number, ascent: number, descent: number, fontSize: number }}
+ * @param {{ wordsPerLine?: number, locale?: string | null, rtl?: boolean }} [options]
+ * @returns {{ group: SVGGElement, textEl: SVGTextElement, width: number, ascent: number, descent: number, fontSize: number, rtl: boolean }}
  */
 export function createNoteText(svg, text, style, options = {}) {
   const fontSize = style.fontSize ?? NOTE_FONT_SIZE;
   const lines = wrapWords(text, options.wordsPerLine ?? DEFAULT_WORDS_PER_LINE);
   const lineHeight = fontSize * 1.05;
+
+  // Which way the note runs is read off the text itself, by the first strong
+  // character - the rule behind `dir="auto"`, which SVG has no equivalent of.
+  // An Arabic or Hebrew note lays out right to left without being told to.
+  const rtl = options.rtl ?? isRtlText(text);
 
   const group = document.createElementNS(SVG_NS, "g");
   const textEl = document.createElementNS(SVG_NS, "text");
@@ -1028,8 +1137,25 @@ export function createNoteText(svg, text, style, options = {}) {
   textEl.setAttribute("font-family", style.fontFamily || HANDWRITTEN_FONT);
   textEl.setAttribute("font-weight", "600");
   textEl.setAttribute("letter-spacing", "0.4");
+  // `start` is the edge the reader starts at, not the left one: under
+  // `direction: rtl` it is the right edge of the line. Anchoring there and
+  // placing that anchor on the box's far side (see `placeNoteText`) is what
+  // fills the box leftward - asking for `end` instead anchors the *left* edge
+  // and runs the text off to the right of everything else in the note.
   textEl.setAttribute("text-anchor", "start");
   textEl.setAttribute("dominant-baseline", "auto");
+
+  if (rtl) {
+    // `direction` alone is inert in SVG; it takes an embedding to act on.
+    textEl.setAttribute("direction", "rtl");
+    textEl.setAttribute("unicode-bidi", "embed");
+  }
+
+  // Lets the browser pick the right face and shaping for the language - it
+  // matters where one codepoint is drawn differently by script, as in Han.
+  if (options.locale) {
+    textEl.setAttributeNS(XML_NS, "xml:lang", options.locale);
+  }
 
   const tspans = lines.map((line, index) => {
     const tspan = document.createElementNS(SVG_NS, "tspan");
@@ -1066,6 +1192,7 @@ export function createNoteText(svg, text, style, options = {}) {
     ascent,
     descent,
     fontSize,
+    rtl,
   };
 }
 
@@ -1082,10 +1209,15 @@ export function placeNoteText(note, box, style, seed, options = {}) {
   const random = createRandom(seed + 55);
   const tilt = options.tilt ?? (random() - 0.5) * 7;
 
-  note.textEl.setAttribute("x", fmt(box.x));
+  // A right-to-left line starts at its right, so its anchor goes on the box's
+  // far edge and the line fills leftward - the box itself is the same either
+  // way, and a short line in a stack is aligned with the side it starts on.
+  const anchorX = note.rtl ? box.x + box.width : box.x;
+
+  note.textEl.setAttribute("x", fmt(anchorX));
   note.textEl.setAttribute("y", fmt(box.y + note.ascent));
   // Each line carries its own x, so the text element's alone would not move them
-  for (const tspan of note.tspans) tspan.setAttribute("x", fmt(box.x));
+  for (const tspan of note.tspans) tspan.setAttribute("x", fmt(anchorX));
 
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
@@ -1098,10 +1230,13 @@ export function placeNoteText(note, box, style, seed, options = {}) {
     // Underline the last line only, at that line's width - running it at the
     // width of the widest line would overshoot a short closing line.
     const lastWidth = note.lineWidths[note.lineWidths.length - 1] ?? box.width;
+    // and under the line where it actually sits, which for right-to-left text
+    // is against the far edge rather than the near one
+    const underlineX = note.rtl ? box.x + box.width - lastWidth + 1 : box.x + 1;
 
     drawUnderline(
       note.group,
-      box.x + 1,
+      underlineX,
       box.y + box.height + 2,
       lastWidth - 2,
       {

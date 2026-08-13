@@ -48,6 +48,32 @@
         opacity: 0.7;
         font-size: 0.9rem;
       }
+      .languages {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .languages button {
+        padding: 0.35rem 0.8rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: transparent;
+        color: #fff;
+        font: inherit;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+      .languages button[aria-pressed="true"] {
+        background: rgba(255, 255, 255, 0.16);
+        border-color: rgba(255, 255, 255, 0.6);
+      }
+      .caption {
+        margin: 0.75rem 0 0;
+        opacity: 0.55;
+        font-size: 0.8rem;
+        text-align: center;
+      }
       .cta {
         padding: 0.9rem 1.8rem;
         border-radius: 999px;
@@ -69,6 +95,18 @@
 
     <button class="cta" id="find">Find Aznabee</button>
 
+    <div>
+      <div class="languages" id="languages">
+        <button data-locale="" aria-pressed="true">system</button>
+        <button data-locale="en">en</button>
+        <button data-locale="fr">fr</button>
+        <button data-locale="hi">hi</button>
+        <button data-locale="ja">ja</button>
+        <button data-locale="ar">ar</button>
+      </div>
+      <p class="caption" id="caption"></p>
+    </div>
+
     <script type="module">
       import { doodle } from "../../dist/freehand-ui.js";
 
@@ -81,19 +119,48 @@
         strokeWidth: 1.35,
       });
 
-      doodle("#find", {
-        note: { text: "start chat", position: "right" },
-        arrow: {
-          from: "right",
-          to: "edge",
-          style: "curved",
-        },
-        decorations: true,
-        addBreaks: true,
-        padding: 8,
-        roughness: 1.55,
-        strokeWidth: 1.35,
+      // Written once per language. With no `locale` the visitor's own list -
+      // their OS setting - picks one, and Arabic lays itself out right to left.
+      const note = {
+        en: "start chat",
+        fr: "démarrer le chat",
+        hi: "चैट शुरू करें",
+        ja: "チャットを始める",
+        ar: "ابدأ الدردشة",
+        default: "start chat",
+      };
+
+      function drawFind(locale) {
+        doodle("#find", {
+          note: { text: note, position: "right" },
+          locale: locale || null,
+          arrow: { from: "right", to: "edge", style: "curved" },
+          decorations: true,
+          addBreaks: true,
+          padding: 8,
+          roughness: 1.55,
+          strokeWidth: 1.35,
+        });
+
+        caption.textContent = locale
+          ? `locale: "${locale}"`
+          : `following the system: ${navigator.languages.join(", ")}`;
+      }
+
+      const caption = document.querySelector("#caption");
+
+      document.querySelector("#languages").addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        if (!button) return;
+
+        for (const other of event.currentTarget.querySelectorAll("button")) {
+          other.setAttribute("aria-pressed", String(other === button));
+        }
+
+        drawFind(button.dataset.locale);
       });
+
+      drawFind("");
     </script>
   </body>
 </html>

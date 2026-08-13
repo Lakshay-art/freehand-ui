@@ -12,8 +12,10 @@ export type {
   DoodleInstance,
   DoodlePosition,
   DecorationType,
+  LocalizedText,
   NoteOptions,
   ArrowOptions,
+  ArrowAnimationOptions,
   DecorationOptions,
   BreakOptions,
 } from "./index";
