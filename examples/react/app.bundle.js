@@ -22927,7 +22927,7 @@ function createNoteText(svg, text, style, options = {}) {
   textEl.setAttribute("font-family", style.fontFamily || HANDWRITTEN_FONT);
   textEl.setAttribute("font-weight", "600");
   textEl.setAttribute("letter-spacing", "0.4");
-  textEl.setAttribute("text-anchor", rtl ? "end" : "start");
+  textEl.setAttribute("text-anchor", "start");
   textEl.setAttribute("dominant-baseline", "auto");
   if (rtl) {
     textEl.setAttribute("direction", "rtl");
@@ -23014,6 +23014,7 @@ function createOverlaySvg(left, top, width, height) {
   svg.style.height = `${height}px`;
   svg.style.pointerEvents = "none";
   svg.style.overflow = "visible";
+  svg.style.willChange = "transform";
   return svg;
 }
 var NOTE_GAP = 14;
@@ -23536,8 +23537,10 @@ var DoodleOverlay = class {
     this.resizeObserver = null;
     this.mutationObserver = null;
     this.pendingFrame = null;
+    this.pendingRepositionFrame = null;
+    this.basePosition = { x: 0, y: 0 };
     this.listeners = [];
-    this.onScroll = this.scheduleUpdate.bind(this);
+    this.onScroll = this.scheduleReposition.bind(this);
     this.onResize = this.scheduleUpdate.bind(this);
     this.onLanguageChange = this.scheduleUpdate.bind(this);
     this.childElements = [];
@@ -23597,6 +23600,46 @@ var DoodleOverlay = class {
       this.update();
     });
   }
+  scheduleReposition() {
+    if (this.pendingFrame != null || this.pendingRepositionFrame != null) {
+      return;
+    }
+    this.pendingRepositionFrame = scheduleFrame(() => {
+      this.pendingRepositionFrame = null;
+      this.reposition();
+    });
+  }
+  /**
+   * Cheap scroll-driven path: slide the overlay to the element's new
+   * viewport position without touching its contents. Scrolling can't change
+   * an element's size, so the rects, viewBox and every hand-drawn stroke
+   * inside them are still valid - only the overlay's position needs to move.
+   *
+   * That move is a `transform`, not `left`/`top`. `left`/`top` sit in the
+   * same box-geometry pass as layout, so the browser re-checks layout on
+   * every write; `transform` is composited, so the scroll path never
+   * touches layout at all.
+   */
+  reposition() {
+    if (!this.svg || !this.element.isConnected) return;
+    const { padding, radius } = this.options;
+    const targets = this.getTargets();
+    const margin = this.overlayMargin();
+    const absoluteRects = targets.map(
+      (target) => getElementBounds(target, padding, radius)
+    );
+    const overlayRect = unionRects(absoluteRects, margin);
+    const currentWidth = parseFloat(this.svg.style.width) || 0;
+    const currentHeight = parseFloat(this.svg.style.height) || 0;
+    const resized = Math.abs(overlayRect.width - currentWidth) > 0.5 || Math.abs(overlayRect.height - currentHeight) > 0.5;
+    if (resized) {
+      this.update();
+      return;
+    }
+    const dx = overlayRect.x - this.basePosition.x;
+    const dy = overlayRect.y - this.basePosition.y;
+    this.svg.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+  }
   getTargets() {
     if (this.options.children) {
       const nodes = this.element.querySelectorAll(this.options.children);
@@ -23623,6 +23666,8 @@ var DoodleOverlay = class {
     this.svg.style.top = `${overlayRect.y}px`;
     this.svg.style.width = `${overlayRect.width}px`;
     this.svg.style.height = `${overlayRect.height}px`;
+    this.svg.style.transform = "";
+    this.basePosition = { x: overlayRect.x, y: overlayRect.y };
     const strokeStyle = { color, strokeWidth, roughness, opacity };
     const noteStyle = {
       color,
@@ -23697,6 +23742,10 @@ var DoodleOverlay = class {
     if (this.pendingFrame != null) {
       cancelFrame(this.pendingFrame);
       this.pendingFrame = null;
+    }
+    if (this.pendingRepositionFrame != null) {
+      cancelFrame(this.pendingRepositionFrame);
+      this.pendingRepositionFrame = null;
     }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();

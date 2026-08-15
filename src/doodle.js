@@ -80,8 +80,17 @@ class DoodleOverlay {
     this.resizeObserver = null;
     this.mutationObserver = null;
     this.pendingFrame = null;
+    this.pendingRepositionFrame = null;
+    // The viewport position `update()` last painted the overlay at. Scroll
+    // ticks move the overlay by translating away from this point instead of
+    // rewriting `left`/`top`, which keeps the work on the compositor thread.
+    this.basePosition = { x: 0, y: 0 };
     this.listeners = [];
-    this.onScroll = this.scheduleUpdate.bind(this);
+    // Scroll only ever moves the element, never reshapes it - a scroll tick
+    // just slides the overlay to match, it doesn't re-run the rough-stroke
+    // generator. Anything that can actually change size or content (resize,
+    // DOM mutation, fonts, language) still goes through the full `update()`.
+    this.onScroll = this.scheduleReposition.bind(this);
     this.onResize = this.scheduleUpdate.bind(this);
     this.onLanguageChange = this.scheduleUpdate.bind(this);
     this.childElements = [];
@@ -163,6 +172,60 @@ class DoodleOverlay {
     });
   }
 
+  scheduleReposition() {
+    // A full update is already queued (or about to redraw); it will paint the
+    // overlay in the right place, so a plain reposition would just be
+    // redundant work on top of it.
+    if (this.pendingFrame != null || this.pendingRepositionFrame != null) {
+      return;
+    }
+    this.pendingRepositionFrame = scheduleFrame(() => {
+      this.pendingRepositionFrame = null;
+      this.reposition();
+    });
+  }
+
+  /**
+   * Cheap scroll-driven path: slide the overlay to the element's new
+   * viewport position without touching its contents. Scrolling can't change
+   * an element's size, so the rects, viewBox and every hand-drawn stroke
+   * inside them are still valid - only the overlay's position needs to move.
+   *
+   * That move is a `transform`, not `left`/`top`. `left`/`top` sit in the
+   * same box-geometry pass as layout, so the browser re-checks layout on
+   * every write; `transform` is composited, so the scroll path never
+   * touches layout at all.
+   */
+  reposition() {
+    if (!this.svg || !this.element.isConnected) return;
+
+    const { padding, radius } = this.options;
+    const targets = this.getTargets();
+    const margin = this.overlayMargin();
+    const absoluteRects = targets.map((target) =>
+      getElementBounds(target, padding, radius)
+    );
+    const overlayRect = unionRects(absoluteRects, margin);
+
+    const currentWidth = parseFloat(this.svg.style.width) || 0;
+    const currentHeight = parseFloat(this.svg.style.height) || 0;
+    const resized =
+      Math.abs(overlayRect.width - currentWidth) > 0.5 ||
+      Math.abs(overlayRect.height - currentHeight) > 0.5;
+
+    // Something other than scroll changed the layout (e.g. a sticky header
+    // toggling in) - fall back to a full rebuild rather than show a
+    // mis-sized overlay.
+    if (resized) {
+      this.update();
+      return;
+    }
+
+    const dx = overlayRect.x - this.basePosition.x;
+    const dy = overlayRect.y - this.basePosition.y;
+    this.svg.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+  }
+
   getTargets() {
     if (this.options.children) {
       const nodes = this.element.querySelectorAll(this.options.children);
@@ -199,6 +262,10 @@ class DoodleOverlay {
     this.svg.style.top = `${overlayRect.y}px`;
     this.svg.style.width = `${overlayRect.width}px`;
     this.svg.style.height = `${overlayRect.height}px`;
+    // `left`/`top` above are the new source of truth - any scroll-driven
+    // translate from before this repaint is now baked in and must be cleared.
+    this.svg.style.transform = "";
+    this.basePosition = { x: overlayRect.x, y: overlayRect.y };
 
     const strokeStyle = { color, strokeWidth, roughness, opacity };
     const noteStyle = {
@@ -296,6 +363,11 @@ class DoodleOverlay {
     if (this.pendingFrame != null) {
       cancelFrame(this.pendingFrame);
       this.pendingFrame = null;
+    }
+
+    if (this.pendingRepositionFrame != null) {
+      cancelFrame(this.pendingRepositionFrame);
+      this.pendingRepositionFrame = null;
     }
 
     if (this.resizeObserver) {

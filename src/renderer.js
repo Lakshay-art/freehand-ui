@@ -1294,6 +1294,10 @@ export function createOverlaySvg(left, top, width, height) {
   svg.style.height = `${height}px`;
   svg.style.pointerEvents = "none";
   svg.style.overflow = "visible";
+  // Scroll ticks move this element via `transform` alone (see
+  // DoodleOverlay#reposition) - promoting it to its own compositor layer up
+  // front means those ticks skip layout and paint entirely.
+  svg.style.willChange = "transform";
   return svg;
 }
 
