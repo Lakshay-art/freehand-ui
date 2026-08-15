@@ -81,6 +81,10 @@ class DoodleOverlay {
     this.mutationObserver = null;
     this.pendingFrame = null;
     this.pendingRepositionFrame = null;
+    // The viewport position `update()` last painted the overlay at. Scroll
+    // ticks move the overlay by translating away from this point instead of
+    // rewriting `left`/`top`, which keeps the work on the compositor thread.
+    this.basePosition = { x: 0, y: 0 };
     this.listeners = [];
     // Scroll only ever moves the element, never reshapes it - a scroll tick
     // just slides the overlay to match, it doesn't re-run the rough-stroke
@@ -185,7 +189,12 @@ class DoodleOverlay {
    * Cheap scroll-driven path: slide the overlay to the element's new
    * viewport position without touching its contents. Scrolling can't change
    * an element's size, so the rects, viewBox and every hand-drawn stroke
-   * inside them are still valid - only `left`/`top` need to move.
+   * inside them are still valid - only the overlay's position needs to move.
+   *
+   * That move is a `transform`, not `left`/`top`. `left`/`top` sit in the
+   * same box-geometry pass as layout, so the browser re-checks layout on
+   * every write; `transform` is composited, so the scroll path never
+   * touches layout at all.
    */
   reposition() {
     if (!this.svg || !this.element.isConnected) return;
@@ -212,8 +221,9 @@ class DoodleOverlay {
       return;
     }
 
-    this.svg.style.left = `${overlayRect.x}px`;
-    this.svg.style.top = `${overlayRect.y}px`;
+    const dx = overlayRect.x - this.basePosition.x;
+    const dy = overlayRect.y - this.basePosition.y;
+    this.svg.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
   }
 
   getTargets() {
@@ -252,6 +262,10 @@ class DoodleOverlay {
     this.svg.style.top = `${overlayRect.y}px`;
     this.svg.style.width = `${overlayRect.width}px`;
     this.svg.style.height = `${overlayRect.height}px`;
+    // `left`/`top` above are the new source of truth - any scroll-driven
+    // translate from before this repaint is now baked in and must be cleared.
+    this.svg.style.transform = "";
+    this.basePosition = { x: overlayRect.x, y: overlayRect.y };
 
     const strokeStyle = { color, strokeWidth, roughness, opacity };
     const noteStyle = {
