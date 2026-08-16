@@ -1,6 +1,7 @@
 import { createRandom, clamp } from "./utils.js";
 import {
   appendPath,
+  appendGlow,
   roughLine,
   createGroup,
   catmullRomPath,
@@ -23,6 +24,32 @@ function drawDot(parent, x, y, style, scale = 1.7) {
     ...style,
     strokeWidth: style.strokeWidth * scale,
   });
+}
+
+/**
+ * Soft, irregular fleck - a wobbled blob (never a true circle) with a light
+ * blur, like a mote of light rather than a printed dot.
+ */
+function drawFleck(parent, x, y, radius, style, random) {
+  const count = 6;
+  const points = [];
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 * i) / count + (random() - 0.5) * 0.5;
+    // Kept near the radius - a wider spread turns the blob into a shard
+    const r = radius * (0.78 + random() * 0.34);
+    points.push({
+      x: x + Math.cos(angle) * r,
+      y: y + Math.sin(angle) * r,
+    });
+  }
+
+  const blob = appendPath(parent, catmullRomPath(points, true), {
+    ...style,
+    fill: style.color,
+    strokeWidth: 0,
+  });
+  blob.style.filter = `blur(${(radius * 0.35).toFixed(2)}px)`;
+  return blob;
 }
 
 /**
@@ -61,18 +88,18 @@ function twinkle(parent, radiusX, radiusY, pinch, style) {
     "Z",
   ].join(" ");
 
-  appendPath(parent, path, style);
+  return appendPath(parent, path, style);
 }
 
 /**
- * Slim, tall twinkle - the classic sparkle accent.
+ * Full four-point twinkle - the classic sparkle accent.
  */
 function drawSparkle(parent, size, style, random) {
   twinkle(
     parent,
-    size * (0.34 + random() * 0.1),
+    size * (0.62 + random() * 0.12),
     size,
-    size * (0.06 + random() * 0.06),
+    size * (0.14 + random() * 0.08),
     style,
   );
 }
@@ -83,11 +110,65 @@ function drawSparkle(parent, size, style, random) {
 function drawStar(parent, size, style, random) {
   twinkle(
     parent,
-    size * (0.66 + random() * 0.12),
-    size,
-    size * (0.2 + random() * 0.08),
+    size * (0.62 + random() * 0.12),
+    size * (0.8 + random() * 0.12),
+    size * (0.14 + random() * 0.08),
     style,
   );
+}
+
+/**
+ * Filled sparkle badge: a solid twinkle with a small dot tucked into each of
+ * the four gaps between its arms, sitting on a faint glow. Reads as a bold
+ * "generated" mark rather than the subtle handwriting accent `sparkle` is.
+ */
+function drawGlimmer(parent, size, style, random) {
+  appendGlow(parent, size * (1.2 + random() * 0.2), {
+    color: style.color,
+    opacity: style.opacity * 0.22,
+  });
+
+  // Near-equal arms so the four sides read evenly rather than as a tall lens
+  const armX = size * (0.5 + random() * 0.08);
+  const armY = size * (0.45 + random() * 0.08);
+
+  // The outline is stroked in the fill colour with round joins: the stroke
+  // swells the silhouette by half its width and rounds every tip, which is
+  // what blunts the points instead of leaving them needle-sharp.
+  const bluntness = size * 0.19;
+
+  // The waist sits shallow enough that each arm stays chunky along its length
+  // instead of tapering to a needle before the round tip catches it. A deeper
+  // pull here bows the sides in more, trimming the filled area a touch.
+  const main = twinkle(parent, armX, armY, size * (0.08 + random() * 0.03), {
+    ...style,
+    fill: style.color,
+    strokeWidth: bluntness,
+  });
+  main.setAttribute("stroke-linejoin", "round");
+  main.setAttribute("stroke-linecap", "round");
+  main.style.filter = `blur(${(size * 0.05).toFixed(2)}px)`;
+
+  // One fleck past each arm, a small constant gap beyond the blunted tip.
+  // Same colour and opacity as the star - a dimmer dot reads as a smudge.
+  const gap = bluntness / 2 + size * 0.2;
+  const corners = [
+    { x: 0, y: -(armY + gap) },
+    { x: armX + gap, y: 0 },
+    { x: 0, y: armY + gap },
+    { x: -(armX + gap), y: 0 },
+  ];
+  for (const { x, y } of corners) {
+    const jitter = 0.95 + random() * 0.1;
+    drawFleck(
+      parent,
+      x * jitter,
+      y * jitter,
+      size * (0.1 + random() * 0.03),
+      style,
+      random,
+    );
+  }
 }
 
 /**
@@ -244,62 +325,16 @@ function drawEmphasis(parent, size, style, random, opts = {}) {
   }
 }
 
-/**
- * Three dots, unevenly spaced.
- */
-function drawDots(parent, size, style, random) {
-  let x = -size * 0.7;
-  for (let i = 0; i < 3; i++) {
-    drawDot(parent, x, (random() - 0.5) * size * 0.16, style);
-    x += size * (0.6 + random() * 0.25);
-  }
-}
-
-/**
- * Single confident slash.
- */
-function drawStroke(parent, size, style, random) {
-  appendPath(
-    parent,
-    roughLine(-size, 0, size, 0, 1.2, random, {
-      bow: (random() - 0.5) * size * 0.35,
-      steps: 4,
-    }),
-    style,
-  );
-}
-
-/**
- * Two rising wisps. Both lean the same way - mirrored wisps read as brackets
- * rather than steam.
- */
-function drawSteam(parent, size, style, random) {
-  const lean = random() < 0.5 ? -1 : 1;
-
-  for (let i = 0; i < 2; i++) {
-    const x = (i - 0.5) * size * 0.72;
-    const base = size * 0.62 - i * size * 0.14;
-
-    appendPath(
-      parent,
-      `M ${x.toFixed(2)} ${base.toFixed(2)} Q ${(x + lean * size * 0.52).toFixed(2)} ${(base - size * 0.62).toFixed(2)} ${(x + lean * size * 0.06).toFixed(2)} ${(base - size * 1.3).toFixed(2)}`,
-      style,
-    );
-  }
-}
-
 /** @type {Record<string, Drawer>} */
 const DECORATION_DRAWERS = {
   heart: drawHeart,
   sparkle: drawSparkle,
   star: drawStar,
   twinkle: drawTwinkle,
+  glimmer: drawGlimmer,
   smiley: drawSmiley,
   emphasis: drawEmphasis,
   arcs: drawArcs,
-  dots: drawDots,
-  stroke: drawStroke,
-  steam: drawSteam,
 };
 
 // Marks that accent handwriting rather than the component itself
@@ -322,12 +357,10 @@ const TYPE_TRAITS = {
   sparkle: { size: [6, 9], tilt: 20, standoff: 22 },
   star: { size: [8, 11], tilt: 25, standoff: 26 },
   twinkle: { size: [5, 7.5], tilt: 30, standoff: 26, brightness: 1.4 },
+  glimmer: { size: [7, 10], tilt: 20, standoff: 28, brightness: 1.3 },
   smiley: { size: [8, 11], tilt: 10, standoff: 22 },
   emphasis: { size: [12, 17], tilt: 10, standoff: 13, outward: true },
   arcs: { size: [11, 16], tilt: 12, standoff: 12, outward: true },
-  dots: { size: [6, 9], tilt: 8, standoff: 20 },
-  stroke: { size: [8, 12], tilt: 40, standoff: 20 },
-  steam: { size: [8, 11], tilt: 10, standoff: 20 },
 };
 
 export const DEFAULT_TYPES = [

@@ -14,12 +14,10 @@ export type DecorationType =
   | "sparkle"
   | "star"
   | "twinkle"
+  | "glimmer"
   | "smiley"
   | "emphasis"
-  | "arcs"
-  | "dots"
-  | "stroke"
-  | "steam";
+  | "arcs";
 
 /**
  * Note text, either written once or written per language.

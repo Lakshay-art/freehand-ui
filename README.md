@@ -10,14 +10,14 @@ Wrap any existing web element with a beautiful, responsive, hand-drawn doodle la
 
 **Good for:** call-to-action buttons, feature cards, onboarding hints, playful marketing UI.
 
-| Feature         | One-liner                                                           |
-| --------------- | ------------------------------------------------------------------- |
-| **Border**      | Hand-drawn frame that follows the element's shape and border-radius |
-| **Notes**       | Caveat handwriting beside the element                               |
+| Feature         | One-liner                                                            |
+| --------------- | -------------------------------------------------------------------- |
+| **Border**      | Hand-drawn frame that follows the element's shape and border-radius  |
+| **Notes**       | Caveat handwriting beside the element                                |
 | **Arrows**      | Curved, straight, dotted, or looped pointers that draw themselves in |
-| **Decorations** | Corner accents, stars, hearts, and more                             |
-| **Localised**   | Notes in the visitor's own language, right-to-left included         |
-| **Responsive**  | Stays aligned on resize, scroll, and reflow                         |
+| **Decorations** | Corner accents, stars, hearts, and more                              |
+| **Localised**   | Notes in the visitor's own language, right-to-left included          |
+| **Responsive**  | Stays aligned on resize, scroll, and reflow                          |
 
 **Live on [Aznabee.com](https://aznabee.com)** - see it in production on the real product.
 
@@ -289,7 +289,7 @@ Corner marks follow the _rounded_ corner rather than the bounding box. Marks too
 
 Chips and icon buttons get a mirrored pair of two-stroke `emphasis` marks - one either side - instead of corner marks. This is automatic when the element is under 48px on its short side or under 130px wide. `style: "sides"` forces it at any size; `style: "corners"` opts out.
 
-Other types - `star`, `smiley`, `dots`, `stroke`, `steam` - fill a corner slot when no accent or star was requested.
+Other types - `star`, `glimmer`, `smiley` - fill a corner slot when no accent or star was requested.
 
 ### Child selector mode
 
@@ -410,7 +410,10 @@ Same as the core - a map of languages goes straight in as the note, and `locale`
   <Button />
 </Doodle>;
 
-<Doodle note={{ en: "start chat", fr: "démarrer le chat" }} locale={i18n.language}>
+<Doodle
+  note={{ en: "start chat", fr: "démarrer le chat" }}
+  locale={i18n.language}
+>
   <Button />
 </Doodle>;
 ```

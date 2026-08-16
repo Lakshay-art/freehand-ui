@@ -22531,6 +22531,15 @@ function appendPath(svg, d, style) {
   svg.appendChild(path);
   return path;
 }
+function appendGlow(svg, radius, style) {
+  const circle = document.createElementNS(SVG_NS, "circle");
+  circle.setAttribute("r", fmt(radius));
+  circle.setAttribute("fill", style.color);
+  circle.setAttribute("opacity", String(style.opacity));
+  circle.style.filter = `blur(${fmt(radius * 0.4)}px)`;
+  svg.appendChild(circle);
+  return circle;
+}
 function rectPerimeter(width, height, radius) {
   const r = clamp(radius, 0, Math.min(width, height) / 2);
   return 2 * (width - 2 * r) + 2 * (height - 2 * r) + 2 * Math.PI * r;
@@ -23109,6 +23118,25 @@ function drawDot(parent, x, y, style, scale = 1.7) {
     strokeWidth: style.strokeWidth * scale
   });
 }
+function drawFleck(parent, x, y, radius, style, random) {
+  const count = 6;
+  const points = [];
+  for (let i = 0; i < count; i++) {
+    const angle = Math.PI * 2 * i / count + (random() - 0.5) * 0.5;
+    const r = radius * (0.78 + random() * 0.34);
+    points.push({
+      x: x + Math.cos(angle) * r,
+      y: y + Math.sin(angle) * r
+    });
+  }
+  const blob = appendPath(parent, catmullRomPath(points, true), {
+    ...style,
+    fill: style.color,
+    strokeWidth: 0
+  });
+  blob.style.filter = `blur(${(radius * 0.35).toFixed(2)}px)`;
+  return blob;
+}
 function drawHeart(parent, size, style, random) {
   const s = size;
   const j = () => (random() - 0.5) * s * 0.12;
@@ -23132,25 +23160,60 @@ function twinkle(parent, radiusX, radiusY, pinch, style) {
     `Q ${(-c).toFixed(2)} ${(-c).toFixed(2)} 0 ${(-ry).toFixed(2)}`,
     "Z"
   ].join(" ");
-  appendPath(parent, path, style);
+  return appendPath(parent, path, style);
 }
 function drawSparkle(parent, size, style, random) {
   twinkle(
     parent,
-    size * (0.34 + random() * 0.1),
+    size * (0.62 + random() * 0.12),
     size,
-    size * (0.06 + random() * 0.06),
+    size * (0.14 + random() * 0.08),
     style
   );
 }
 function drawStar(parent, size, style, random) {
   twinkle(
     parent,
-    size * (0.66 + random() * 0.12),
-    size,
-    size * (0.2 + random() * 0.08),
+    size * (0.62 + random() * 0.12),
+    size * (0.8 + random() * 0.12),
+    size * (0.14 + random() * 0.08),
     style
   );
+}
+function drawGlimmer(parent, size, style, random) {
+  appendGlow(parent, size * (1.2 + random() * 0.2), {
+    color: style.color,
+    opacity: style.opacity * 0.22
+  });
+  const armX = size * (0.5 + random() * 0.08);
+  const armY = size * (0.45 + random() * 0.08);
+  const bluntness = size * 0.19;
+  const main = twinkle(parent, armX, armY, size * (0.08 + random() * 0.03), {
+    ...style,
+    fill: style.color,
+    strokeWidth: bluntness
+  });
+  main.setAttribute("stroke-linejoin", "round");
+  main.setAttribute("stroke-linecap", "round");
+  main.style.filter = `blur(${(size * 0.05).toFixed(2)}px)`;
+  const gap = bluntness / 2 + size * 0.2;
+  const corners = [
+    { x: 0, y: -(armY + gap) },
+    { x: armX + gap, y: 0 },
+    { x: 0, y: armY + gap },
+    { x: -(armX + gap), y: 0 }
+  ];
+  for (const { x, y } of corners) {
+    const jitter = 0.95 + random() * 0.1;
+    drawFleck(
+      parent,
+      x * jitter,
+      y * jitter,
+      size * (0.1 + random() * 0.03),
+      style,
+      random
+    );
+  }
 }
 function drawTwinkle(parent, size, style, random) {
   const count = 5;
@@ -23259,46 +23322,15 @@ function drawEmphasis(parent, size, style, random, opts = {}) {
     );
   }
 }
-function drawDots(parent, size, style, random) {
-  let x = -size * 0.7;
-  for (let i = 0; i < 3; i++) {
-    drawDot(parent, x, (random() - 0.5) * size * 0.16, style);
-    x += size * (0.6 + random() * 0.25);
-  }
-}
-function drawStroke(parent, size, style, random) {
-  appendPath(
-    parent,
-    roughLine(-size, 0, size, 0, 1.2, random, {
-      bow: (random() - 0.5) * size * 0.35,
-      steps: 4
-    }),
-    style
-  );
-}
-function drawSteam(parent, size, style, random) {
-  const lean = random() < 0.5 ? -1 : 1;
-  for (let i = 0; i < 2; i++) {
-    const x = (i - 0.5) * size * 0.72;
-    const base = size * 0.62 - i * size * 0.14;
-    appendPath(
-      parent,
-      `M ${x.toFixed(2)} ${base.toFixed(2)} Q ${(x + lean * size * 0.52).toFixed(2)} ${(base - size * 0.62).toFixed(2)} ${(x + lean * size * 0.06).toFixed(2)} ${(base - size * 1.3).toFixed(2)}`,
-      style
-    );
-  }
-}
 var DECORATION_DRAWERS = {
   heart: drawHeart,
   sparkle: drawSparkle,
   star: drawStar,
   twinkle: drawTwinkle,
+  glimmer: drawGlimmer,
   smiley: drawSmiley,
   emphasis: drawEmphasis,
-  arcs: drawArcs,
-  dots: drawDots,
-  stroke: drawStroke,
-  steam: drawSteam
+  arcs: drawArcs
 };
 var TEXT_TYPES = ["heart", "sparkle"];
 var CORNER_ACCENTS = ["arcs", "emphasis"];
@@ -23309,12 +23341,10 @@ var TYPE_TRAITS = {
   sparkle: { size: [6, 9], tilt: 20, standoff: 22 },
   star: { size: [8, 11], tilt: 25, standoff: 26 },
   twinkle: { size: [5, 7.5], tilt: 30, standoff: 26, brightness: 1.4 },
+  glimmer: { size: [7, 10], tilt: 20, standoff: 28, brightness: 1.3 },
   smiley: { size: [8, 11], tilt: 10, standoff: 22 },
   emphasis: { size: [12, 17], tilt: 10, standoff: 13, outward: true },
-  arcs: { size: [11, 16], tilt: 12, standoff: 12, outward: true },
-  dots: { size: [6, 9], tilt: 8, standoff: 20 },
-  stroke: { size: [8, 12], tilt: 40, standoff: 20 },
-  steam: { size: [8, 11], tilt: 10, standoff: 20 }
+  arcs: { size: [11, 16], tilt: 12, standoff: 12, outward: true }
 };
 var DEFAULT_TYPES = [
   "twinkle",

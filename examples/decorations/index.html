@@ -45,6 +45,7 @@
         align-items: flex-end;
         gap: 5rem 4.5rem;
         max-width: 1200px;
+        padding-inline: 10rem;
       }
       .demo {
         display: flex;
@@ -109,35 +110,21 @@
         <div class="demo">
           <div
             class="card"
+            id="glimmer"
+            style="width: 80px; height: 48px; border-radius: 12px"
+          ></div>
+          <span>Glimmer</span>
+        </div>
+        <div class="demo">
+          <div
+            class="card"
             id="smiley"
             style="width: 72px; height: 56px; border-radius: 14px"
           ></div>
           <span>Smiley</span>
         </div>
-        <div class="demo">
-          <div
-            class="card"
-            id="dots"
-            style="width: 96px; height: 32px; border-radius: 999px"
-          ></div>
-          <span>Dots</span>
-        </div>
-        <div class="demo">
-          <div
-            class="card"
-            id="stroke"
-            style="width: 44px; height: 44px; border-radius: 50%"
-          ></div>
-          <span>Stroke</span>
-        </div>
-        <div class="demo">
-          <div
-            class="card"
-            id="steam"
-            style="width: 88px; height: 44px; border-radius: 10px"
-          ></div>
-          <span>Steam</span>
-        </div>
+
+        <!-- <div style="flex-basis: 100%; height: 0"></div> -->
         <div class="demo">
           <div
             class="card"
@@ -174,10 +161,8 @@
       doodle("#emphasis", { ...shared, ...corner("emphasis") });
       doodle("#twinkle", { ...shared, ...corner("twinkle") });
       doodle("#star", { ...shared, ...corner("star") });
+      doodle("#glimmer", { ...shared, ...corner("glimmer") });
       doodle("#smiley", { ...shared, ...corner("smiley") });
-      doodle("#dots", { ...shared, ...corner("dots") });
-      doodle("#stroke", { ...shared, ...corner("stroke") });
-      doodle("#steam", { ...shared, ...corner("steam") });
 
       const note = {
         text: "nice!",

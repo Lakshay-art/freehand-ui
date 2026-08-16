@@ -445,6 +445,24 @@ export function appendPath(svg, d, style) {
 }
 
 /**
+ * Soft blurred circle for a glow behind a mark. Blur is a CSS filter function
+ * rather than an SVG <filter> def, so it needs no id and can't collide across
+ * multiple doodle instances on the same page.
+ * @param {SVGElement} svg
+ * @param {number} radius
+ * @param {{ color: string, opacity: number }} style
+ */
+export function appendGlow(svg, radius, style) {
+  const circle = document.createElementNS(SVG_NS, "circle");
+  circle.setAttribute("r", fmt(radius));
+  circle.setAttribute("fill", style.color);
+  circle.setAttribute("opacity", String(style.opacity));
+  circle.style.filter = `blur(${fmt(radius * 0.4)}px)`;
+  svg.appendChild(circle);
+  return circle;
+}
+
+/**
  * @param {number} width
  * @param {number} height
  * @param {number} radius
