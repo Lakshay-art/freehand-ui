@@ -7,11 +7,7 @@ import {
   removeOverlaySvg,
   syncOverlayStacking,
 } from "./utils.js";
-import {
-  getElementBounds,
-  relativeRect,
-  unionRects,
-} from "./geometry.js";
+import { getElementBounds, relativeRect } from "./geometry.js";
 import {
   clearSvg,
   createOverlaySvg,
@@ -21,7 +17,6 @@ import {
 import { renderAnnotation } from "./annotations.js";
 import { renderDecorations } from "./decorations.js";
 import { ensureHandwrittenFont } from "./fonts.js";
-import { resolveLocalizedText } from "./locale.js";
 
 /** @typedef {import('./utils.js').DoodleOptions} DoodleOptions */
 
@@ -47,16 +42,41 @@ function now() {
  * that and crawl the note away from the element. Viewport width is a real,
  * screen-relative constraint worth clamping to; viewport height is not.
  *
- * @param {import('./geometry.js').Rect} overlayRect
+ * @param {number} originLeft viewport x the overlay's local x=0 sits at
  * @param {number} [inset]
  * @returns {{ x: number, width: number }}
  */
-function localBand(overlayRect, inset = 8) {
+function localBand(originLeft, inset = 8) {
   const width = window.innerWidth || document.documentElement.clientWidth || 0;
 
   return {
-    x: -overlayRect.x + inset,
+    x: -originLeft + inset,
     width: Math.max(0, width - inset * 2),
+  };
+}
+
+/**
+ * The element's padding box, in viewport coordinates - exactly the area an
+ * absolutely positioned child with `left: 0; top: 0; width/height: 100%`
+ * covers, so it is both where the overlay's own box goes and the origin its
+ * drawing coordinates are measured from.
+ *
+ * @param {Element} element
+ * @returns {{ left: number, top: number, width: number, height: number }}
+ */
+function paddingBox(element) {
+  const rect = element.getBoundingClientRect();
+  const style = getComputedStyle(element);
+  const left = parseFloat(style.borderLeftWidth) || 0;
+  const top = parseFloat(style.borderTopWidth) || 0;
+  const right = parseFloat(style.borderRightWidth) || 0;
+  const bottom = parseFloat(style.borderBottomWidth) || 0;
+
+  return {
+    left: rect.left + left,
+    top: rect.top + top,
+    width: Math.max(0, rect.width - left - right),
+    height: Math.max(0, rect.height - top - bottom),
   };
 }
 
@@ -79,10 +99,9 @@ class DoodleOverlay {
     // painting them - see `now()`
     this.startedAt = now();
     this.svg = null;
-    // The wrapper `insertOverlaySvg` inserts around `element`, and the
-    // positioning context `update()` places the overlay relative to. `null`
-    // when `element` had no parent to wrap (see `insertOverlaySvg`).
-    this.wrapper = null;
+    // Whether `insertOverlaySvg` had to force `position: relative` on the
+    // element, and so must clear it again on teardown.
+    this.setPosition = false;
     this.resizeObserver = null;
     this.mutationObserver = null;
     this.pendingFrame = null;
@@ -96,7 +115,7 @@ class DoodleOverlay {
 
   mount() {
     this.svg = createOverlaySvg(0, 0, 0, 0);
-    this.wrapper = insertOverlaySvg(this.svg, this.element);
+    this.setPosition = insertOverlaySvg(this.svg, this.element);
     syncOverlayStacking(this.svg, this.element, this.options.zIndex);
 
     this.resizeObserver = new ResizeObserver(this.onResize);
@@ -106,7 +125,16 @@ class DoodleOverlay {
       this.observeChildren();
     }
 
-    this.mutationObserver = new MutationObserver(this.scheduleUpdate.bind(this));
+    // The svg lives inside `this.element` now, so every stroke `update()`
+    // draws is itself a childList/attribute mutation within the observed
+    // subtree - without filtering those out, redrawing would trigger the
+    // observer, which would schedule another redraw, forever.
+    this.mutationObserver = new MutationObserver((records) => {
+      // `contains` is true for the svg itself as well as its descendants, so
+      // this alone excludes every mutation `update()` makes to its own tree.
+      const relevant = records.some((record) => !this.svg.contains(record.target));
+      if (relevant) this.scheduleUpdate();
+    });
     this.mutationObserver.observe(this.element, {
       childList: true,
       subtree: true,
@@ -178,7 +206,6 @@ class DoodleOverlay {
       this.options;
 
     const targets = this.getTargets();
-    const margin = this.overlayMargin();
     // Every stroke is rebuilt on each update, so animations are handed the
     // overlay's age and pick up where the last pass left off
     const elapsed = now() - this.startedAt;
@@ -187,26 +214,30 @@ class DoodleOverlay {
       getElementBounds(target, padding, radius)
     );
 
-    const overlayRect = unionRects(absoluteRects, margin);
-
     clearSvg(this.svg);
     syncOverlayStacking(this.svg, this.element, this.options.zIndex);
 
-    // The svg is `position: absolute` inside `this.wrapper` - its `left`/`top`
-    // are relative to the wrapper's box, not the viewport, so the rects
-    // above (which come from `getBoundingClientRect`, viewport-relative) need
-    // the wrapper's own viewport position subtracted out.
-    const origin = this.wrapper
-      ? this.wrapper.getBoundingClientRect()
-      : { left: 0, top: 0 };
+    // The overlay's box is exactly the element's padding box - no margin for
+    // the notes, arrows and decorations that reach outside it. That is the
+    // point: an absolutely positioned box *does* extend the page's scrollable
+    // area, so a box inflated to enclose a note would put a scrollbar on the
+    // page. Whatever is drawn beyond the box is ink overflow instead, which
+    // paints (thanks to `overflow: visible`) without affecting layout.
+    const box = paddingBox(this.element);
+    // A zero width or height would switch the svg off entirely.
+    const width = Math.max(1, box.width);
+    const height = Math.max(1, box.height);
+    // Local drawing coordinates are measured from the same origin the box
+    // sits at, so `viewBox` maps 1:1 to CSS pixels and needs no offset.
+    const origin = { x: box.left, y: box.top };
 
-    this.svg.setAttribute("width", String(overlayRect.width));
-    this.svg.setAttribute("height", String(overlayRect.height));
-    this.svg.setAttribute("viewBox", `0 0 ${overlayRect.width} ${overlayRect.height}`);
-    this.svg.style.left = `${overlayRect.x - origin.left}px`;
-    this.svg.style.top = `${overlayRect.y - origin.top}px`;
-    this.svg.style.width = `${overlayRect.width}px`;
-    this.svg.style.height = `${overlayRect.height}px`;
+    this.svg.setAttribute("width", String(width));
+    this.svg.setAttribute("height", String(height));
+    this.svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    this.svg.style.left = "0px";
+    this.svg.style.top = "0px";
+    this.svg.style.width = `${width}px`;
+    this.svg.style.height = `${height}px`;
 
     const strokeStyle = { color, strokeWidth, roughness, opacity };
     const noteStyle = {
@@ -219,13 +250,13 @@ class DoodleOverlay {
     const noteGroups = [];
     // A connected note is pushed further out so its arrow has room to sweep
     const noteLayout = {
-      band: localBand(overlayRect),
+      band: localBand(origin.x),
       gap: this.options.arrow ? 40 : 14,
     };
 
     targets.forEach((target, index) => {
       const absolute = absoluteRects[index];
-      const local = relativeRect(overlayRect, absolute);
+      const local = relativeRect(origin, absolute);
       const seed = this.seed + index * 31;
 
       // The note is measured and placed first: the arrow starts from its box
@@ -287,19 +318,6 @@ class DoodleOverlay {
     }
   }
 
-  /**
-   * Room the overlay needs beyond the element for notes, arrows and decorations.
-   */
-  overlayMargin() {
-    const { note, arrow, decorations } = this.options;
-    if (!note && !arrow && !decorations) return 48;
-
-    // Sized from the string that will actually be drawn: translations of the
-    // same note differ in length, sometimes by half again.
-    const { text } = resolveLocalizedText(note?.text, note?.locale);
-    return Math.max(96, Math.min(240, 80 + text.length * 8));
-  }
-
   destroy() {
     if (this.pendingFrame != null) {
       cancelFrame(this.pendingFrame);
@@ -327,10 +345,9 @@ class DoodleOverlay {
     this.listeners = [];
 
     if (this.svg) {
-      removeOverlaySvg(this.svg, this.wrapper, this.element);
+      removeOverlaySvg(this.svg, this.element, this.setPosition);
     }
     this.svg = null;
-    this.wrapper = null;
 
     instances.delete(this.element);
   }

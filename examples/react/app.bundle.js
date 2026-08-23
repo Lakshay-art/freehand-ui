@@ -22007,6 +22007,10 @@ var DEFAULT_OPTIONS = {
    */
   zIndex: null
 };
+var OVERLAY_CLASS = "doodle-ui-overlay";
+function isOverlayNode(node) {
+  return node?.classList?.contains(OVERLAY_CLASS) ?? false;
+}
 function resolveElement(target) {
   if (!target) return null;
   if (typeof target === "string") {
@@ -22112,45 +22116,21 @@ function resolveOverlayZIndex(element, override) {
   }
   return null;
 }
-var ITEM_PLACEMENT_PROPERTIES = [
-  "order",
-  "flexGrow",
-  "flexShrink",
-  "flexBasis",
-  "alignSelf",
-  "justifySelf",
-  "gridColumn",
-  "gridRow",
-  "gridArea"
-];
-function isInlineDisplay(computed) {
-  return computed.display.startsWith("inline");
-}
 function insertOverlaySvg(svg, element) {
-  const parent = element.parentNode;
-  if (!parent) {
-    document.body.appendChild(svg);
-    return null;
+  const setPosition = getComputedStyle(element).position === "static";
+  if (setPosition) {
+    element.style.position = "relative";
   }
-  const wrapper = document.createElement("div");
-  wrapper.style.position = "relative";
-  const computed = getComputedStyle(element);
-  wrapper.style.display = isInlineDisplay(computed) ? "inline-block" : "block";
-  for (const property of ITEM_PLACEMENT_PROPERTIES) {
-    const value = computed[property];
-    if (value) wrapper.style[property] = value;
-  }
-  parent.replaceChild(wrapper, element);
-  wrapper.appendChild(element);
-  wrapper.appendChild(svg);
-  return wrapper;
+  element.appendChild(svg);
+  return setPosition;
 }
-function removeOverlaySvg(svg, wrapper, element) {
+function removeOverlaySvg(svg, element, clearPosition) {
   if (svg.parentNode) {
     svg.parentNode.removeChild(svg);
   }
-  if (!wrapper || !wrapper.parentNode) return;
-  wrapper.parentNode.replaceChild(element, wrapper);
+  if (clearPosition) {
+    element.style.position = "";
+  }
 }
 function syncOverlayStacking(svg, element, zIndexOverride) {
   const zIndex = resolveOverlayZIndex(element, zIndexOverride);
@@ -22175,7 +22155,10 @@ function averageCornerRadius(element) {
 function detectBorderRadius(element) {
   const own = averageCornerRadius(element);
   if (own > 0) return own;
-  const child = element.children.length === 1 ? element.firstElementChild : null;
+  const content = Array.from(element.children).filter(
+    (node) => !isOverlayNode(node)
+  );
+  const child = content.length === 1 ? content[0] : null;
   if (!child) return 0;
   const outer = element.getBoundingClientRect();
   const inner = child.getBoundingClientRect();
@@ -22204,22 +22187,6 @@ function relativeRect(outer, inner) {
     width: inner.width,
     height: inner.height,
     radius: inner.radius
-  };
-}
-function unionRects(rects, margin = 0) {
-  if (rects.length === 0) {
-    return { x: 0, y: 0, width: 0, height: 0, radius: 0 };
-  }
-  const minX = Math.min(...rects.map((r) => r.x)) - margin;
-  const minY = Math.min(...rects.map((r) => r.y)) - margin;
-  const maxX = Math.max(...rects.map((r) => r.x + r.width)) + margin;
-  const maxY = Math.max(...rects.map((r) => r.y + r.height)) + margin;
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-    radius: 0
   };
 }
 function inflateRect(rect, amount) {
@@ -23029,7 +22996,7 @@ function placeNoteText(note, box, style, seed, options = {}) {
 }
 function createOverlaySvg(left, top, width, height) {
   const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("class", "doodle-ui-overlay");
+  svg.setAttribute("class", OVERLAY_CLASS);
   svg.setAttribute("xmlns", SVG_NS);
   svg.setAttribute("width", String(width));
   svg.setAttribute("height", String(height));
@@ -23563,11 +23530,25 @@ var instances = /* @__PURE__ */ new WeakMap();
 function now() {
   return typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
 }
-function localBand(overlayRect, inset = 8) {
+function localBand(originLeft, inset = 8) {
   const width = window.innerWidth || document.documentElement.clientWidth || 0;
   return {
-    x: -overlayRect.x + inset,
+    x: -originLeft + inset,
     width: Math.max(0, width - inset * 2)
+  };
+}
+function paddingBox(element) {
+  const rect = element.getBoundingClientRect();
+  const style = getComputedStyle(element);
+  const left = parseFloat(style.borderLeftWidth) || 0;
+  const top = parseFloat(style.borderTopWidth) || 0;
+  const right = parseFloat(style.borderRightWidth) || 0;
+  const bottom = parseFloat(style.borderBottomWidth) || 0;
+  return {
+    left: rect.left + left,
+    top: rect.top + top,
+    width: Math.max(0, rect.width - left - right),
+    height: Math.max(0, rect.height - top - bottom)
   };
 }
 var DoodleOverlay = class {
@@ -23581,7 +23562,7 @@ var DoodleOverlay = class {
     this.seed = Math.floor(Math.random() * 1e9);
     this.startedAt = now();
     this.svg = null;
-    this.wrapper = null;
+    this.setPosition = false;
     this.resizeObserver = null;
     this.mutationObserver = null;
     this.pendingFrame = null;
@@ -23593,14 +23574,17 @@ var DoodleOverlay = class {
   }
   mount() {
     this.svg = createOverlaySvg(0, 0, 0, 0);
-    this.wrapper = insertOverlaySvg(this.svg, this.element);
+    this.setPosition = insertOverlaySvg(this.svg, this.element);
     syncOverlayStacking(this.svg, this.element, this.options.zIndex);
     this.resizeObserver = new ResizeObserver(this.onResize);
     this.resizeObserver.observe(this.element);
     if (this.options.children) {
       this.observeChildren();
     }
-    this.mutationObserver = new MutationObserver(this.scheduleUpdate.bind(this));
+    this.mutationObserver = new MutationObserver((records) => {
+      const relevant = records.some((record) => !this.svg.contains(record.target));
+      if (relevant) this.scheduleUpdate();
+    });
     this.mutationObserver.observe(this.element, {
       childList: true,
       subtree: true,
@@ -23652,22 +23636,23 @@ var DoodleOverlay = class {
     if (!this.svg || !this.element.isConnected) return;
     const { padding, radius, color, strokeWidth, roughness, opacity } = this.options;
     const targets = this.getTargets();
-    const margin = this.overlayMargin();
     const elapsed = now() - this.startedAt;
     const absoluteRects = targets.map(
       (target) => getElementBounds(target, padding, radius)
     );
-    const overlayRect = unionRects(absoluteRects, margin);
     clearSvg(this.svg);
     syncOverlayStacking(this.svg, this.element, this.options.zIndex);
-    const origin = this.wrapper ? this.wrapper.getBoundingClientRect() : { left: 0, top: 0 };
-    this.svg.setAttribute("width", String(overlayRect.width));
-    this.svg.setAttribute("height", String(overlayRect.height));
-    this.svg.setAttribute("viewBox", `0 0 ${overlayRect.width} ${overlayRect.height}`);
-    this.svg.style.left = `${overlayRect.x - origin.left}px`;
-    this.svg.style.top = `${overlayRect.y - origin.top}px`;
-    this.svg.style.width = `${overlayRect.width}px`;
-    this.svg.style.height = `${overlayRect.height}px`;
+    const box = paddingBox(this.element);
+    const width = Math.max(1, box.width);
+    const height = Math.max(1, box.height);
+    const origin = { x: box.left, y: box.top };
+    this.svg.setAttribute("width", String(width));
+    this.svg.setAttribute("height", String(height));
+    this.svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    this.svg.style.left = "0px";
+    this.svg.style.top = "0px";
+    this.svg.style.width = `${width}px`;
+    this.svg.style.height = `${height}px`;
     const strokeStyle = { color, strokeWidth, roughness, opacity };
     const noteStyle = {
       color,
@@ -23678,12 +23663,12 @@ var DoodleOverlay = class {
     };
     const noteGroups = [];
     const noteLayout = {
-      band: localBand(overlayRect),
+      band: localBand(origin.x),
       gap: this.options.arrow ? 40 : 14
     };
     targets.forEach((target, index) => {
       const absolute = absoluteRects[index];
-      const local = relativeRect(overlayRect, absolute);
+      const local = relativeRect(origin, absolute);
       const seed = this.seed + index * 31;
       const note = this.options.note && index === 0 ? renderAnnotation(
         this.svg,
@@ -23729,15 +23714,6 @@ var DoodleOverlay = class {
       this.svg.appendChild(group);
     }
   }
-  /**
-   * Room the overlay needs beyond the element for notes, arrows and decorations.
-   */
-  overlayMargin() {
-    const { note, arrow, decorations } = this.options;
-    if (!note && !arrow && !decorations) return 48;
-    const { text } = resolveLocalizedText(note?.text, note?.locale);
-    return Math.max(96, Math.min(240, 80 + text.length * 8));
-  }
   destroy() {
     if (this.pendingFrame != null) {
       cancelFrame(this.pendingFrame);
@@ -23760,10 +23736,9 @@ var DoodleOverlay = class {
     }
     this.listeners = [];
     if (this.svg) {
-      removeOverlaySvg(this.svg, this.wrapper, this.element);
+      removeOverlaySvg(this.svg, this.element, this.setPosition);
     }
     this.svg = null;
-    this.wrapper = null;
     instances.delete(this.element);
   }
 };

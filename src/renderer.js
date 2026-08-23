@@ -1,4 +1,4 @@
-import { createRandom, clamp } from "./utils.js";
+import { createRandom, clamp, OVERLAY_CLASS } from "./utils.js";
 import {
   pointFromPosition,
   annotationAnchor,
@@ -1300,22 +1300,25 @@ export function drawNote(svg, box, text, style, seed = 1, options = {}) {
  */
 export function createOverlaySvg(left, top, width, height) {
   const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("class", "doodle-ui-overlay");
+  svg.setAttribute("class", OVERLAY_CLASS);
   svg.setAttribute("xmlns", SVG_NS);
   svg.setAttribute("width", String(width));
   svg.setAttribute("height", String(height));
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  // Absolute inside the wrapper `insertOverlaySvg` mounts it in - it moves
-  // with the element through ordinary layout (scroll, an ancestor resizing,
-  // a sibling loading in above it) with no JS repositioning, at the cost of
-  // being clipped by an `overflow: hidden` ancestor the way a `fixed`
-  // overlay would not be.
+  // Absolute, mounted as the element's own last child (see
+  // `insertOverlaySvg`) - it moves with the element through ordinary layout
+  // (scroll, a sibling loading in above it) with no JS repositioning, at the
+  // cost of being clipped if the element (or an ancestor) sets
+  // `overflow: hidden`.
   svg.style.position = "absolute";
   svg.style.left = `${left}px`;
   svg.style.top = `${top}px`;
   svg.style.width = `${width}px`;
   svg.style.height = `${height}px`;
   svg.style.pointerEvents = "none";
+  // Load-bearing, not a tidy-up: the box is only as big as the element, and
+  // every note, arrow and decoration is drawn outside it. `hidden` is the UA
+  // default for an outermost svg, which would erase all of them.
   svg.style.overflow = "visible";
   return svg;
 }

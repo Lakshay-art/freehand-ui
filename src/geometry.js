@@ -1,4 +1,4 @@
-import { clamp } from "./utils.js";
+import { clamp, isOverlayNode } from "./utils.js";
 
 /**
  * @typedef {Object} Rect
@@ -55,8 +55,14 @@ export function detectBorderRadius(element) {
   // has no radius of its own. Borrow it from a sole child it fits tightly
   // around, so the doodle still follows the shape people actually see. Without
   // this a wrapped pill button gets drawn as a rectangle.
-  const child =
-    element.children.length === 1 ? element.firstElementChild : null;
+  //
+  // The overlay is mounted inside the element, so it is a child too - skip it,
+  // or a wrapper around one child looks like a wrapper around two and the
+  // radius is lost.
+  const content = Array.from(element.children).filter(
+    (node) => !isOverlayNode(node),
+  );
+  const child = content.length === 1 ? content[0] : null;
   if (!child) return 0;
 
   const outer = element.getBoundingClientRect();

@@ -104,8 +104,9 @@ function mergeRefs(...refs) {
  * The doodle is drawn around the wrapper as a whole - children are never
  * decorated individually unless you opt in with `childSelector`. The overlay
  * itself is an absolutely-positioned, `pointer-events: none` SVG mounted
- * beside the wrapper, so it never affects layout or blocks clicks - but it is
- * clipped by an `overflow: hidden` ancestor, the same as any other content.
+ * inside the wrapper as its last child, so it never affects layout or blocks
+ * clicks - but it is clipped if the wrapper (or an ancestor) has
+ * `overflow: hidden`.
  */
 const Doodle = forwardRef(function Doodle(props, forwardedRef) {
   const {
