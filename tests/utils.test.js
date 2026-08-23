@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergeOptions, createRandom, clamp, isValidPosition, resolveOverlayZIndex, insertOverlaySvg } from "../src/utils.js";
+import { mergeOptions, createRandom, clamp, isValidPosition, resolveOverlayZIndex, insertOverlaySvg, removeOverlaySvg } from "../src/utils.js";
 import { unionRects, pointFromPosition, relativeRect } from "../src/geometry.js";
 import {
   generateHandDrawnRectPath,
@@ -209,17 +209,141 @@ test("resolveOverlayZIndex follows the target and allows overrides", () => {
   assert.equal(resolveOverlayZIndex(element, null), 6);
 });
 
-test("insertOverlaySvg mounts beside the target element", () => {
-  const parent = {
-    nodeType: 1,
-    insertBefore(svg, ref) {
-      this.lastInsert = { svg, ref };
+test("insertOverlaySvg wraps the element and mounts svg as the wrapper's last child", () => {
+  globalThis.getComputedStyle = () => ({
+    display: "block",
+    order: "",
+    flexGrow: "",
+    flexShrink: "",
+    flexBasis: "",
+    alignSelf: "",
+    justifySelf: "",
+    gridColumn: "",
+    gridRow: "",
+    gridArea: "",
+  });
+
+  const createdElements = [];
+  globalThis.document = {
+    createElement(tag) {
+      const el = {
+        tag,
+        style: {},
+        children: [],
+        appendChild(child) {
+          this.children.push(child);
+        },
+      };
+      createdElements.push(el);
+      return el;
     },
   };
-  const next = {};
-  const element = { parentNode: parent, nextSibling: next };
+
+  const parent = {
+    nodeType: 1,
+    replaceChild(newNode, oldNode) {
+      this.replaced = { newNode, oldNode };
+    },
+  };
+  const element = { parentNode: parent };
   const svg = {};
 
-  insertOverlaySvg(svg, element);
-  assert.deepEqual(parent.lastInsert, { svg, ref: next });
+  const wrapper = insertOverlaySvg(svg, element);
+
+  assert.equal(wrapper, createdElements[0]);
+  assert.deepEqual(parent.replaced, { newNode: wrapper, oldNode: element });
+  assert.deepEqual(wrapper.children, [element, svg]);
+  assert.equal(wrapper.style.position, "relative");
+  assert.equal(wrapper.style.display, "block");
+
+  delete globalThis.document;
+});
+
+test("insertOverlaySvg matches inline display so wrapping an inline element doesn't force it onto its own line", () => {
+  globalThis.getComputedStyle = () => ({ display: "inline-block" });
+  globalThis.document = {
+    createElement: () => ({ style: {}, children: [], appendChild(child) { this.children.push(child); } }),
+  };
+
+  const parent = { nodeType: 1, replaceChild() {} };
+  const wrapper = insertOverlaySvg({}, { parentNode: parent });
+
+  assert.equal(wrapper.style.display, "inline-block");
+
+  delete globalThis.document;
+});
+
+test("insertOverlaySvg carries flex/grid item placement onto the wrapper", () => {
+  globalThis.getComputedStyle = () => ({
+    display: "block",
+    order: "2",
+    flexGrow: "1",
+    flexShrink: "",
+    flexBasis: "",
+    alignSelf: "",
+    justifySelf: "",
+    gridColumn: "1 / 3",
+    gridRow: "",
+    gridArea: "",
+  });
+  globalThis.document = {
+    createElement: () => ({ style: {}, children: [], appendChild(child) { this.children.push(child); } }),
+  };
+
+  const parent = { nodeType: 1, replaceChild() {} };
+  const wrapper = insertOverlaySvg({}, { parentNode: parent });
+
+  assert.equal(wrapper.style.order, "2");
+  assert.equal(wrapper.style.flexGrow, "1");
+  assert.equal(wrapper.style.gridColumn, "1 / 3");
+  assert.equal(wrapper.style.flexShrink, undefined);
+
+  delete globalThis.document;
+});
+
+test("insertOverlaySvg appends directly to the body when the element has no parent", () => {
+  const appended = [];
+  globalThis.document = { body: { appendChild: (node) => appended.push(node) } };
+
+  const svg = {};
+  const wrapper = insertOverlaySvg(svg, { parentNode: null });
+
+  assert.equal(wrapper, null);
+  assert.deepEqual(appended, [svg]);
+
+  delete globalThis.document;
+});
+
+test("removeOverlaySvg removes the svg and restores the element in the wrapper's place", () => {
+  const svgParent = {
+    removeChild(node) {
+      this.removed = node;
+    },
+  };
+  const svg = { parentNode: svgParent };
+
+  const wrapperParent = {
+    replaceChild(newNode, oldNode) {
+      this.replaced = { newNode, oldNode };
+    },
+  };
+  const wrapper = { parentNode: wrapperParent };
+  const element = {};
+
+  removeOverlaySvg(svg, wrapper, element);
+
+  assert.equal(svgParent.removed, svg);
+  assert.deepEqual(wrapperParent.replaced, { newNode: element, oldNode: wrapper });
+});
+
+test("removeOverlaySvg just removes the svg when there is no wrapper", () => {
+  const svgParent = {
+    removeChild(node) {
+      this.removed = node;
+    },
+  };
+  const svg = { parentNode: svgParent };
+
+  assert.doesNotThrow(() => removeOverlaySvg(svg, null, {}));
+  assert.equal(svgParent.removed, svg);
 });

@@ -173,27 +173,6 @@ export function isValidPosition(position) {
 }
 
 /**
- * @param {Element} element
- * @returns {Element[]}
- */
-export function getScrollableAncestors(element) {
-  const ancestors = [];
-  let node = element.parentElement;
-
-  while (node && node !== document.documentElement) {
-    const style = getComputedStyle(node);
-    const overflow = style.overflow + style.overflowY + style.overflowX;
-    if (/(auto|scroll|overlay)/.test(overflow)) {
-      ancestors.push(node);
-    }
-    node = node.parentElement;
-  }
-
-  ancestors.push(window);
-  return ancestors;
-}
-
-/**
  * z-index for the overlay: one step above the target when it participates in
  * stacking, otherwise `auto` and DOM order (inserted as next sibling) wins.
  *
@@ -225,20 +204,86 @@ export function resolveOverlayZIndex(element, override) {
 }
 
 /**
- * Mount the overlay beside the target so it shares the same stacking context
- * instead of painting above every body-level modal.
+ * A flex/grid item's placement is a property of being a direct child of the
+ * flex/grid container - wrapping the element hands that slot to the wrapper
+ * instead, so these values must move with it or the item silently reverts to
+ * defaults (e.g. a `flex: 1 1 auto` card stops growing).
+ */
+const ITEM_PLACEMENT_PROPERTIES = [
+  "order",
+  "flexGrow",
+  "flexShrink",
+  "flexBasis",
+  "alignSelf",
+  "justifySelf",
+  "gridColumn",
+  "gridRow",
+  "gridArea",
+];
+
+/**
+ * @param {CSSStyleDeclaration} computed
+ * @returns {boolean}
+ */
+function isInlineDisplay(computed) {
+  return computed.display.startsWith("inline");
+}
+
+/**
+ * Wraps `element` in a positioning parent and mounts `svg` as its last
+ * child, so the overlay sits above the element by DOM order alone and moves
+ * with it through ordinary layout - scrolling, an ancestor resizing, a
+ * sibling loading in above it - with no JS repositioning required. The
+ * tradeoff: the overlay is clipped by any `overflow: hidden` ancestor the
+ * old viewport-fixed overlay used to escape.
  *
  * @param {SVGElement} svg
  * @param {Element} element
+ * @returns {Element | null} the wrapper, or `null` if `element` had no parent
+ *   to wrap within (svg is appended to `document.body` instead)
  */
 export function insertOverlaySvg(svg, element) {
   const parent = element.parentNode;
   if (!parent) {
     document.body.appendChild(svg);
-    return;
+    return null;
   }
 
-  parent.insertBefore(svg, element.nextSibling);
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "relative";
+
+  const computed = getComputedStyle(element);
+  // Match the element's own inline/block flow so wrapping it doesn't change
+  // how it sits among its siblings (an inline button forced onto its own
+  // line, say).
+  wrapper.style.display = isInlineDisplay(computed) ? "inline-block" : "block";
+  for (const property of ITEM_PLACEMENT_PROPERTIES) {
+    const value = computed[property];
+    if (value) wrapper.style[property] = value;
+  }
+
+  parent.replaceChild(wrapper, element);
+  wrapper.appendChild(element);
+  wrapper.appendChild(svg);
+
+  return wrapper;
+}
+
+/**
+ * Reverses `insertOverlaySvg`: removes `svg` and restores `element` to the
+ * position `wrapper` was standing in, leaving no trace of the wrapper.
+ *
+ * @param {SVGElement} svg
+ * @param {Element | null} wrapper
+ * @param {Element} element
+ */
+export function removeOverlaySvg(svg, wrapper, element) {
+  if (svg.parentNode) {
+    svg.parentNode.removeChild(svg);
+  }
+
+  if (!wrapper || !wrapper.parentNode) return;
+  wrapper.parentNode.replaceChild(element, wrapper);
 }
 
 /**

@@ -3,8 +3,8 @@ import {
   resolveElement,
   scheduleFrame,
   cancelFrame,
-  getScrollableAncestors,
   insertOverlaySvg,
+  removeOverlaySvg,
   syncOverlayStacking,
 } from "./utils.js";
 import {
@@ -28,8 +28,9 @@ import { resolveLocalizedText } from "./locale.js";
 const instances = new WeakMap();
 
 /**
- * Monotonic clock for animation phase. The overlay is rebuilt on every scroll
- * and resize, so animations are placed by age rather than restarted.
+ * Monotonic clock for animation phase. The overlay is rebuilt whenever the
+ * element resizes or its content mutates, so animations are placed by age
+ * rather than restarted.
  */
 function now() {
   return typeof performance !== "undefined" && performance.now
@@ -40,10 +41,11 @@ function now() {
 /**
  * The readable horizontal band, in the overlay's local coordinates.
  *
- * Horizontal only, on purpose: the overlay is fixed-position, so a band with
- * top and bottom edges would move relative to the page as it scrolls, and
- * notes clamped to it would crawl away from the element they annotate.
- * Horizontal extent does not change with vertical scroll.
+ * Horizontal only, on purpose: the note's vertical position is set by
+ * `position` relative to the element it annotates, not by how much of the
+ * page is scrolled into view - clamping it to a vertical band would fight
+ * that and crawl the note away from the element. Viewport width is a real,
+ * screen-relative constraint worth clamping to; viewport height is not.
  *
  * @param {import('./geometry.js').Rect} overlayRect
  * @param {number} [inset]
@@ -77,20 +79,14 @@ class DoodleOverlay {
     // painting them - see `now()`
     this.startedAt = now();
     this.svg = null;
+    // The wrapper `insertOverlaySvg` inserts around `element`, and the
+    // positioning context `update()` places the overlay relative to. `null`
+    // when `element` had no parent to wrap (see `insertOverlaySvg`).
+    this.wrapper = null;
     this.resizeObserver = null;
     this.mutationObserver = null;
     this.pendingFrame = null;
-    this.pendingRepositionFrame = null;
-    // The viewport position `update()` last painted the overlay at. Scroll
-    // ticks move the overlay by translating away from this point instead of
-    // rewriting `left`/`top`, which keeps the work on the compositor thread.
-    this.basePosition = { x: 0, y: 0 };
     this.listeners = [];
-    // Scroll only ever moves the element, never reshapes it - a scroll tick
-    // just slides the overlay to match, it doesn't re-run the rough-stroke
-    // generator. Anything that can actually change size or content (resize,
-    // DOM mutation, fonts, language) still goes through the full `update()`.
-    this.onScroll = this.scheduleReposition.bind(this);
     this.onResize = this.scheduleUpdate.bind(this);
     this.onLanguageChange = this.scheduleUpdate.bind(this);
     this.childElements = [];
@@ -100,7 +96,7 @@ class DoodleOverlay {
 
   mount() {
     this.svg = createOverlaySvg(0, 0, 0, 0);
-    insertOverlaySvg(this.svg, this.element);
+    this.wrapper = insertOverlaySvg(this.svg, this.element);
     syncOverlayStacking(this.svg, this.element, this.options.zIndex);
 
     this.resizeObserver = new ResizeObserver(this.onResize);
@@ -116,11 +112,6 @@ class DoodleOverlay {
       subtree: true,
       attributes: true,
     });
-
-    for (const target of getScrollableAncestors(this.element)) {
-      target.addEventListener("scroll", this.onScroll, { passive: true });
-      this.listeners.push({ target, type: "scroll", handler: this.onScroll });
-    }
 
     window.addEventListener("resize", this.onResize, { passive: true });
     this.listeners.push({
@@ -172,60 +163,6 @@ class DoodleOverlay {
     });
   }
 
-  scheduleReposition() {
-    // A full update is already queued (or about to redraw); it will paint the
-    // overlay in the right place, so a plain reposition would just be
-    // redundant work on top of it.
-    if (this.pendingFrame != null || this.pendingRepositionFrame != null) {
-      return;
-    }
-    this.pendingRepositionFrame = scheduleFrame(() => {
-      this.pendingRepositionFrame = null;
-      this.reposition();
-    });
-  }
-
-  /**
-   * Cheap scroll-driven path: slide the overlay to the element's new
-   * viewport position without touching its contents. Scrolling can't change
-   * an element's size, so the rects, viewBox and every hand-drawn stroke
-   * inside them are still valid - only the overlay's position needs to move.
-   *
-   * That move is a `transform`, not `left`/`top`. `left`/`top` sit in the
-   * same box-geometry pass as layout, so the browser re-checks layout on
-   * every write; `transform` is composited, so the scroll path never
-   * touches layout at all.
-   */
-  reposition() {
-    if (!this.svg || !this.element.isConnected) return;
-
-    const { padding, radius } = this.options;
-    const targets = this.getTargets();
-    const margin = this.overlayMargin();
-    const absoluteRects = targets.map((target) =>
-      getElementBounds(target, padding, radius)
-    );
-    const overlayRect = unionRects(absoluteRects, margin);
-
-    const currentWidth = parseFloat(this.svg.style.width) || 0;
-    const currentHeight = parseFloat(this.svg.style.height) || 0;
-    const resized =
-      Math.abs(overlayRect.width - currentWidth) > 0.5 ||
-      Math.abs(overlayRect.height - currentHeight) > 0.5;
-
-    // Something other than scroll changed the layout (e.g. a sticky header
-    // toggling in) - fall back to a full rebuild rather than show a
-    // mis-sized overlay.
-    if (resized) {
-      this.update();
-      return;
-    }
-
-    const dx = overlayRect.x - this.basePosition.x;
-    const dy = overlayRect.y - this.basePosition.y;
-    this.svg.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
-  }
-
   getTargets() {
     if (this.options.children) {
       const nodes = this.element.querySelectorAll(this.options.children);
@@ -255,17 +192,21 @@ class DoodleOverlay {
     clearSvg(this.svg);
     syncOverlayStacking(this.svg, this.element, this.options.zIndex);
 
+    // The svg is `position: absolute` inside `this.wrapper` - its `left`/`top`
+    // are relative to the wrapper's box, not the viewport, so the rects
+    // above (which come from `getBoundingClientRect`, viewport-relative) need
+    // the wrapper's own viewport position subtracted out.
+    const origin = this.wrapper
+      ? this.wrapper.getBoundingClientRect()
+      : { left: 0, top: 0 };
+
     this.svg.setAttribute("width", String(overlayRect.width));
     this.svg.setAttribute("height", String(overlayRect.height));
     this.svg.setAttribute("viewBox", `0 0 ${overlayRect.width} ${overlayRect.height}`);
-    this.svg.style.left = `${overlayRect.x}px`;
-    this.svg.style.top = `${overlayRect.y}px`;
+    this.svg.style.left = `${overlayRect.x - origin.left}px`;
+    this.svg.style.top = `${overlayRect.y - origin.top}px`;
     this.svg.style.width = `${overlayRect.width}px`;
     this.svg.style.height = `${overlayRect.height}px`;
-    // `left`/`top` above are the new source of truth - any scroll-driven
-    // translate from before this repaint is now baked in and must be cleared.
-    this.svg.style.transform = "";
-    this.basePosition = { x: overlayRect.x, y: overlayRect.y };
 
     const strokeStyle = { color, strokeWidth, roughness, opacity };
     const noteStyle = {
@@ -365,11 +306,6 @@ class DoodleOverlay {
       this.pendingFrame = null;
     }
 
-    if (this.pendingRepositionFrame != null) {
-      cancelFrame(this.pendingRepositionFrame);
-      this.pendingRepositionFrame = null;
-    }
-
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -390,10 +326,11 @@ class DoodleOverlay {
     }
     this.listeners = [];
 
-    if (this.svg?.parentNode) {
-      this.svg.parentNode.removeChild(this.svg);
+    if (this.svg) {
+      removeOverlaySvg(this.svg, this.wrapper, this.element);
     }
     this.svg = null;
+    this.wrapper = null;
 
     instances.delete(this.element);
   }

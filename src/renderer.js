@@ -1305,17 +1305,18 @@ export function createOverlaySvg(left, top, width, height) {
   svg.setAttribute("width", String(width));
   svg.setAttribute("height", String(height));
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  svg.style.position = "fixed";
+  // Absolute inside the wrapper `insertOverlaySvg` mounts it in - it moves
+  // with the element through ordinary layout (scroll, an ancestor resizing,
+  // a sibling loading in above it) with no JS repositioning, at the cost of
+  // being clipped by an `overflow: hidden` ancestor the way a `fixed`
+  // overlay would not be.
+  svg.style.position = "absolute";
   svg.style.left = `${left}px`;
   svg.style.top = `${top}px`;
   svg.style.width = `${width}px`;
   svg.style.height = `${height}px`;
   svg.style.pointerEvents = "none";
   svg.style.overflow = "visible";
-  // Scroll ticks move this element via `transform` alone (see
-  // DoodleOverlay#reposition) - promoting it to its own compositor layer up
-  // front means those ticks skip layout and paint entirely.
-  svg.style.willChange = "transform";
   return svg;
 }
 

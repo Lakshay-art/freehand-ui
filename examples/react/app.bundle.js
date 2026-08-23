@@ -22094,20 +22094,6 @@ function isValidPosition(position) {
     "center"
   ].includes(position);
 }
-function getScrollableAncestors(element) {
-  const ancestors = [];
-  let node = element.parentElement;
-  while (node && node !== document.documentElement) {
-    const style = getComputedStyle(node);
-    const overflow = style.overflow + style.overflowY + style.overflowX;
-    if (/(auto|scroll|overlay)/.test(overflow)) {
-      ancestors.push(node);
-    }
-    node = node.parentElement;
-  }
-  ancestors.push(window);
-  return ancestors;
-}
 function resolveOverlayZIndex(element, override) {
   if (override != null) return override;
   const { zIndex, position } = getComputedStyle(element);
@@ -22126,13 +22112,45 @@ function resolveOverlayZIndex(element, override) {
   }
   return null;
 }
+var ITEM_PLACEMENT_PROPERTIES = [
+  "order",
+  "flexGrow",
+  "flexShrink",
+  "flexBasis",
+  "alignSelf",
+  "justifySelf",
+  "gridColumn",
+  "gridRow",
+  "gridArea"
+];
+function isInlineDisplay(computed) {
+  return computed.display.startsWith("inline");
+}
 function insertOverlaySvg(svg, element) {
   const parent = element.parentNode;
   if (!parent) {
     document.body.appendChild(svg);
-    return;
+    return null;
   }
-  parent.insertBefore(svg, element.nextSibling);
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "relative";
+  const computed = getComputedStyle(element);
+  wrapper.style.display = isInlineDisplay(computed) ? "inline-block" : "block";
+  for (const property of ITEM_PLACEMENT_PROPERTIES) {
+    const value = computed[property];
+    if (value) wrapper.style[property] = value;
+  }
+  parent.replaceChild(wrapper, element);
+  wrapper.appendChild(element);
+  wrapper.appendChild(svg);
+  return wrapper;
+}
+function removeOverlaySvg(svg, wrapper, element) {
+  if (svg.parentNode) {
+    svg.parentNode.removeChild(svg);
+  }
+  if (!wrapper || !wrapper.parentNode) return;
+  wrapper.parentNode.replaceChild(element, wrapper);
 }
 function syncOverlayStacking(svg, element, zIndexOverride) {
   const zIndex = resolveOverlayZIndex(element, zIndexOverride);
@@ -23016,14 +23034,13 @@ function createOverlaySvg(left, top, width, height) {
   svg.setAttribute("width", String(width));
   svg.setAttribute("height", String(height));
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  svg.style.position = "fixed";
+  svg.style.position = "absolute";
   svg.style.left = `${left}px`;
   svg.style.top = `${top}px`;
   svg.style.width = `${width}px`;
   svg.style.height = `${height}px`;
   svg.style.pointerEvents = "none";
   svg.style.overflow = "visible";
-  svg.style.willChange = "transform";
   return svg;
 }
 var NOTE_GAP = 14;
@@ -23564,13 +23581,11 @@ var DoodleOverlay = class {
     this.seed = Math.floor(Math.random() * 1e9);
     this.startedAt = now();
     this.svg = null;
+    this.wrapper = null;
     this.resizeObserver = null;
     this.mutationObserver = null;
     this.pendingFrame = null;
-    this.pendingRepositionFrame = null;
-    this.basePosition = { x: 0, y: 0 };
     this.listeners = [];
-    this.onScroll = this.scheduleReposition.bind(this);
     this.onResize = this.scheduleUpdate.bind(this);
     this.onLanguageChange = this.scheduleUpdate.bind(this);
     this.childElements = [];
@@ -23578,7 +23593,7 @@ var DoodleOverlay = class {
   }
   mount() {
     this.svg = createOverlaySvg(0, 0, 0, 0);
-    insertOverlaySvg(this.svg, this.element);
+    this.wrapper = insertOverlaySvg(this.svg, this.element);
     syncOverlayStacking(this.svg, this.element, this.options.zIndex);
     this.resizeObserver = new ResizeObserver(this.onResize);
     this.resizeObserver.observe(this.element);
@@ -23591,10 +23606,6 @@ var DoodleOverlay = class {
       subtree: true,
       attributes: true
     });
-    for (const target of getScrollableAncestors(this.element)) {
-      target.addEventListener("scroll", this.onScroll, { passive: true });
-      this.listeners.push({ target, type: "scroll", handler: this.onScroll });
-    }
     window.addEventListener("resize", this.onResize, { passive: true });
     this.listeners.push({
       target: window,
@@ -23630,46 +23641,6 @@ var DoodleOverlay = class {
       this.update();
     });
   }
-  scheduleReposition() {
-    if (this.pendingFrame != null || this.pendingRepositionFrame != null) {
-      return;
-    }
-    this.pendingRepositionFrame = scheduleFrame(() => {
-      this.pendingRepositionFrame = null;
-      this.reposition();
-    });
-  }
-  /**
-   * Cheap scroll-driven path: slide the overlay to the element's new
-   * viewport position without touching its contents. Scrolling can't change
-   * an element's size, so the rects, viewBox and every hand-drawn stroke
-   * inside them are still valid - only the overlay's position needs to move.
-   *
-   * That move is a `transform`, not `left`/`top`. `left`/`top` sit in the
-   * same box-geometry pass as layout, so the browser re-checks layout on
-   * every write; `transform` is composited, so the scroll path never
-   * touches layout at all.
-   */
-  reposition() {
-    if (!this.svg || !this.element.isConnected) return;
-    const { padding, radius } = this.options;
-    const targets = this.getTargets();
-    const margin = this.overlayMargin();
-    const absoluteRects = targets.map(
-      (target) => getElementBounds(target, padding, radius)
-    );
-    const overlayRect = unionRects(absoluteRects, margin);
-    const currentWidth = parseFloat(this.svg.style.width) || 0;
-    const currentHeight = parseFloat(this.svg.style.height) || 0;
-    const resized = Math.abs(overlayRect.width - currentWidth) > 0.5 || Math.abs(overlayRect.height - currentHeight) > 0.5;
-    if (resized) {
-      this.update();
-      return;
-    }
-    const dx = overlayRect.x - this.basePosition.x;
-    const dy = overlayRect.y - this.basePosition.y;
-    this.svg.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
-  }
   getTargets() {
     if (this.options.children) {
       const nodes = this.element.querySelectorAll(this.options.children);
@@ -23689,15 +23660,14 @@ var DoodleOverlay = class {
     const overlayRect = unionRects(absoluteRects, margin);
     clearSvg(this.svg);
     syncOverlayStacking(this.svg, this.element, this.options.zIndex);
+    const origin = this.wrapper ? this.wrapper.getBoundingClientRect() : { left: 0, top: 0 };
     this.svg.setAttribute("width", String(overlayRect.width));
     this.svg.setAttribute("height", String(overlayRect.height));
     this.svg.setAttribute("viewBox", `0 0 ${overlayRect.width} ${overlayRect.height}`);
-    this.svg.style.left = `${overlayRect.x}px`;
-    this.svg.style.top = `${overlayRect.y}px`;
+    this.svg.style.left = `${overlayRect.x - origin.left}px`;
+    this.svg.style.top = `${overlayRect.y - origin.top}px`;
     this.svg.style.width = `${overlayRect.width}px`;
     this.svg.style.height = `${overlayRect.height}px`;
-    this.svg.style.transform = "";
-    this.basePosition = { x: overlayRect.x, y: overlayRect.y };
     const strokeStyle = { color, strokeWidth, roughness, opacity };
     const noteStyle = {
       color,
@@ -23773,10 +23743,6 @@ var DoodleOverlay = class {
       cancelFrame(this.pendingFrame);
       this.pendingFrame = null;
     }
-    if (this.pendingRepositionFrame != null) {
-      cancelFrame(this.pendingRepositionFrame);
-      this.pendingRepositionFrame = null;
-    }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -23793,10 +23759,11 @@ var DoodleOverlay = class {
       target.removeEventListener(type, handler);
     }
     this.listeners = [];
-    if (this.svg?.parentNode) {
-      this.svg.parentNode.removeChild(this.svg);
+    if (this.svg) {
+      removeOverlaySvg(this.svg, this.wrapper, this.element);
     }
     this.svg = null;
+    this.wrapper = null;
     instances.delete(this.element);
   }
 };

@@ -6,7 +6,7 @@ Wrap any existing web element with a beautiful, responsive, hand-drawn doodle la
 
 ## What it does
 
-`freehand-ui` adds a subtle SVG overlay on top of your UI - thin pen strokes, handwritten notes, arrows, and small decorations. It does **not** change your HTML layout or block clicks (`pointer-events: none`).
+`freehand-ui` adds a subtle SVG overlay on top of your UI - thin pen strokes, handwritten notes, arrows, and small decorations. It does not change your element's own styling and never blocks clicks (`pointer-events: none`).
 
 **Good for:** call-to-action buttons, feature cards, onboarding hints, playful marketing UI.
 
@@ -18,6 +18,8 @@ Wrap any existing web element with a beautiful, responsive, hand-drawn doodle la
 | **Decorations** | Corner accents, stars, hearts, and more                              |
 | **Localised**   | Notes in the visitor's own language, right-to-left included          |
 | **Responsive**  | Stays aligned on resize, scroll, and reflow                          |
+
+**DOM note:** the element is wrapped in a plain positioning `<div>` so the overlay can be mounted beside it (last child, so it paints on top) - the wrapped element keeps its own display and, in a flex/grid parent, its own placement, but a selector depending on it being a *direct* child of its original parent (`.parent > .card`, `:nth-child`) will no longer match. The overlay is also clipped by an `overflow: hidden` ancestor, since it no longer escapes the page via `position: fixed`.
 
 **Live on [Aznabee.com](https://aznabee.com)** - see it in production on the real product.
 
@@ -255,7 +257,7 @@ A `dotted` arrow spends its dash pattern on the dots, and one pattern cannot bot
 Notes:
 
 - **`prefers-reduced-motion: reduce` turns both gestures off** and leaves the arrow fully drawn.
-- The overlay is rebuilt on every scroll and resize. Animations are placed by how long the overlay has been on the page rather than restarted, so scrolling never replays a draw or jolts a lean mid-cycle.
+- The overlay moves with the element for free through ordinary layout - scrolling, a sibling loading in above it - and is only rebuilt when the element's own size actually changes. Animations are placed by how long the overlay has been on the page rather than restarted, so repositioning never replays a draw or jolts a lean mid-cycle.
 
 ### Decorations
 
@@ -454,7 +456,7 @@ Then open:
 - **Framework agnostic** - plain JavaScript at the core; React is an optional entry point
 - **SVG based** - hand-drawn paths, not CSS borders
 - **Non-invasive** - `pointer-events: none`, no layout changes
-- **Responsive** - `ResizeObserver`, scroll listeners, and `requestAnimationFrame`
+- **Responsive** - absolutely positioned beside the element, so it tracks scroll and layout shifts for free; `ResizeObserver` covers the rest
 - **Lightweight** - zero runtime dependencies
 
 ---
