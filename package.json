@@ -26,6 +26,8 @@
   },
   "files": [
     "dist",
+    "native",
+    "react",
     "README.md",
     "LICENSE"
   ],
