@@ -1,6 +1,6 @@
 {
   "name": "@aznabee/freehand-ui",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "description": "Wrap any existing web element with a beautiful, responsive, hand-drawn doodle layer",
   "type": "module",
   "main": "./dist/freehand-ui.cjs",
@@ -17,6 +17,11 @@
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js",
       "require": "./dist/react.cjs"
+    },
+    "./native": {
+      "types": "./dist/native.d.ts",
+      "import": "./dist/native.js",
+      "require": "./dist/native.cjs"
     }
   },
   "files": [
@@ -48,14 +53,23 @@
     "sketch",
     "ui",
     "react",
+    "react-native",
     "gpt-hand-drawn-style"
   ],
   "license": "MIT",
   "peerDependencies": {
-    "react": ">=17"
+    "react": ">=17",
+    "react-native": ">=0.70",
+    "react-native-svg": ">=13"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "react-native-svg": {
       "optional": true
     }
   },

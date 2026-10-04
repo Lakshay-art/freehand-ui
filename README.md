@@ -424,7 +424,41 @@ Server-rendered markup is unaffected: the overlay is drawn in an effect, so the 
 
 - Inline object props (`note={{ text: "hi" }}`) are compared by value, so a re-render does not tear down and redraw the overlay with a new random seed.
 - `disabled` skips drawing entirely - useful behind a reduced-motion check or a feature flag.
-- TypeScript definitions ship with the package for both entry points.
+- TypeScript definitions ship with the package for every entry point.
+
+---
+
+## React Native
+
+The same doodles, drawn with [react-native-svg](https://github.com/software-mansion/react-native-svg). Import from the `native` entry point - it needs `react-native-svg` installed in the app.
+
+```bash
+npm install @aznabee/freehand-ui react-native-svg
+```
+
+```tsx
+import Doodle from "@aznabee/freehand-ui/native";
+
+<Doodle
+  note={{ text: "start chat", position: "bottom", underline: false }}
+  arrow={{ from: "left", to: "edge", style: "curved" }}
+  decorations={{ types: ["heart"] }}
+  radius={16}
+>
+  <TouchableOpacity onPress={start}>...</TouchableOpacity>
+</Doodle>
+```
+
+`<Doodle>` is a plain `View` - every `View` prop passes through - and takes the same options as the web component. The doodle is drawn in an absolutely positioned layer that ignores touches and never affects layout, so, as on the web, an ancestor with `overflow: "hidden"` clips it.
+
+Differences from the web:
+
+- **Corner radius** is not detected from the children. Pass `radius`, or it is read from the wrapper's own `borderRadius` style.
+- **Handwriting** uses the platform's built-in face - Noteworthy on iOS, `casual` on Android - because nothing is fetched at runtime. Link Caveat into the app and pass `fontFamily="Caveat"` to match the web exactly.
+- **Note width** is estimated from the glyphs rather than measured, which is close enough to place the note and its underline.
+- **Arrows** draw on and lean as they do on the web (the lean runs on the native driver). A dotted shaft stays still instead of crawling. Both are skipped when the OS asks for reduced motion.
+- **Language**: React Native has no `navigator.languages`, so pass `locale` (your app's i18n language) to choose from a multilingual note.
+- `childSelector` has no equivalent.
 
 ---
 
