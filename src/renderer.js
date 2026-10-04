@@ -8,8 +8,8 @@ import {
 } from "./geometry.js";
 import { animateArrow } from "./animation.js";
 import { isRtlText } from "./locale.js";
+import { SVG_NS, createSvgElement } from "./svg-dom.js";
 
-const SVG_NS = "http://www.w3.org/2000/svg";
 const XML_NS = "http://www.w3.org/XML/1998/namespace";
 
 // Caveat is loaded by the library (see fonts.js). The rest are system
@@ -414,7 +414,7 @@ export function generateHandDrawnRectPath(
  * @returns {SVGGElement}
  */
 export function createGroup(parent, x, y, rotation = 0) {
-  const group = document.createElementNS(SVG_NS, "g");
+  const group = createSvgElement("g");
   group.setAttribute(
     "transform",
     `translate(${fmt(x)} ${fmt(y)}) rotate(${rotation.toFixed(1)})`,
@@ -429,7 +429,7 @@ export function createGroup(parent, x, y, rotation = 0) {
  * @param {{ color: string, strokeWidth: number, opacity: number, dashed?: boolean, fill?: string }} style
  */
 export function appendPath(svg, d, style) {
-  const path = document.createElementNS(SVG_NS, "path");
+  const path = createSvgElement("path");
   path.setAttribute("d", d);
   path.setAttribute("fill", style.fill ?? "none");
   path.setAttribute("stroke", style.color);
@@ -453,7 +453,7 @@ export function appendPath(svg, d, style) {
  * @param {{ color: string, opacity: number }} style
  */
 export function appendGlow(svg, radius, style) {
-  const circle = document.createElementNS(SVG_NS, "circle");
+  const circle = createSvgElement("circle");
   circle.setAttribute("r", fmt(radius));
   circle.setAttribute("fill", style.color);
   circle.setAttribute("opacity", String(style.opacity));
@@ -989,7 +989,7 @@ export function drawArrow(
   }
 
   // Own group, so the arrow can lean toward its target as one mark
-  const group = document.createElementNS(SVG_NS, "g");
+  const group = createSvgElement("g");
   svg.appendChild(group);
 
   const shaftPaths = [];
@@ -1144,8 +1144,8 @@ export function createNoteText(svg, text, style, options = {}) {
   // An Arabic or Hebrew note lays out right to left without being told to.
   const rtl = options.rtl ?? isRtlText(text);
 
-  const group = document.createElementNS(SVG_NS, "g");
-  const textEl = document.createElementNS(SVG_NS, "text");
+  const group = createSvgElement("g");
+  const textEl = createSvgElement("text");
 
   textEl.setAttribute("x", "0");
   textEl.setAttribute("y", "0");
@@ -1176,7 +1176,7 @@ export function createNoteText(svg, text, style, options = {}) {
   }
 
   const tspans = lines.map((line, index) => {
-    const tspan = document.createElementNS(SVG_NS, "tspan");
+    const tspan = createSvgElement("tspan");
     tspan.textContent = line;
     tspan.setAttribute("x", "0");
     tspan.setAttribute("dy", index === 0 ? "0" : String(lineHeight));
@@ -1299,7 +1299,7 @@ export function drawNote(svg, box, text, style, seed = 1, options = {}) {
  * @returns {SVGSVGElement}
  */
 export function createOverlaySvg(left, top, width, height) {
-  const svg = document.createElementNS(SVG_NS, "svg");
+  const svg = createSvgElement("svg");
   svg.setAttribute("class", OVERLAY_CLASS);
   svg.setAttribute("xmlns", SVG_NS);
   svg.setAttribute("width", String(width));

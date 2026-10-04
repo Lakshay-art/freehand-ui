@@ -1,0 +1,7 @@
+{
+  "name": "@aznabee/freehand-ui-native",
+  "private": true,
+  "main": "../dist/native.cjs",
+  "module": "../dist/native.js",
+  "types": "../dist/native.d.ts"
+}
