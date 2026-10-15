@@ -16,7 +16,10 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import Svg, {
+// `Svg` by name, not the default export: in the CJS build (what Metro loads) a
+// default import resolves to the whole module object, not the component.
+import {
+  Svg,
   Circle,
   Defs,
   G,

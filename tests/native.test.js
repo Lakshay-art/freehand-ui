@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import {
   createSvgElement,
   estimateTextWidth,
@@ -139,3 +140,35 @@ test("note lines keep their own x; the text element's is not added on top", asyn
   assert.equal(propsOf(text).fontFamily, "Caveat");
   assert.equal(propsOf(tspan).x, tspan.getAttribute("x"));
 });
+
+// Metro loads the CJS build. This package is `"type": "module"`, so esbuild
+// compiles a default import of a CJS dependency to `__toESM(require(..), 1)`
+// (Node mode), whose `.default` is the whole module object instead of the
+// component - LayerSvg then fails with "Element type is invalid ... got: object".
+// react-native-svg also exports `Svg` by name, which survives both builds.
+test("react-native-svg is imported by name, never by its default export", () => {
+  const source = readFileSync(
+    new URL("../src/native/react-native.js", import.meta.url),
+    "utf8",
+  );
+  // Anchored to a line start, so the word "import" in a comment can't match
+  const bindings = source.match(/^import\s+([^;]*?)\s+from\s+"react-native-svg"/m)[1];
+
+  assert.ok(
+    bindings.trimStart().startsWith("{") && /\bSvg\b/.test(bindings),
+    'use `import { Svg, ... } from "react-native-svg"` - a default import breaks in the CJS build',
+  );
+});
+
+const builtCjs = new URL("../dist/native.cjs", import.meta.url);
+
+test(
+  "the built CJS renders <Svg> from the named export",
+  { skip: !existsSync(builtCjs) && "run `npm run build` first" },
+  () => {
+    const cjs = readFileSync(builtCjs, "utf8");
+
+    assert.equal(cjs.includes("import_react_native_svg.default"), false);
+    assert.ok(cjs.includes("import_react_native_svg.Svg"));
+  },
+);
