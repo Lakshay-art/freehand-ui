@@ -9,3 +9,20 @@ dist/
 
 # Logs
 *.log
+
+# Generated example bundle (npm run build:example-react)
+examples/react/app.bundle.js
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editor / tooling
+.claude/
+.vscode/
+.idea/
+coverage/
+*.tgz

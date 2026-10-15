@@ -8,6 +8,7 @@ export type {
   DecorationType,
   LocalizedText,
   NoteOptions,
+  NoteHighlight,
   ArrowOptions,
   ArrowAnimationOptions,
   DecorationOptions,

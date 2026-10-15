@@ -100,10 +100,33 @@ export function nudgeIntoBand(box, guard, band) {
 }
 
 /**
+ * The note's own pen: the doodle's colour and size unless the note sets its
+ * own. The colour is also the underline's. Anything unusable is ignored.
+ * @param {{ color: string, fontSize?: number }} base
+ * @param {{ color?: unknown, fontSize?: unknown, fontWeight?: unknown }} [options]
+ */
+export function resolveNoteStyle(base, options = {}) {
+  const style = { ...base };
+  if (typeof options.color === "string" && options.color.trim()) {
+    style.color = options.color;
+  }
+  if (Number.isFinite(options.fontSize) && options.fontSize > 0) {
+    style.fontSize = options.fontSize;
+  }
+  if (
+    (typeof options.fontWeight === "number" && options.fontWeight > 0) ||
+    (typeof options.fontWeight === "string" && options.fontWeight.trim())
+  ) {
+    style.fontWeight = options.fontWeight;
+  }
+  return style;
+}
+
+/**
  * @param {SVGElement} svg
  * @param {import('./geometry.js').Rect} rect
- * @param {{ text: string | Record<string, string>, position?: string, underline?: boolean, offset?: { x?: number, y?: number }, locale?: string | string[] | null }} noteOptions
- * @param {{ color: string, opacity: number, strokeWidth?: number, roughness?: number }} style
+ * @param {{ text: string | Record<string, string>, position?: string, underline?: boolean, offset?: { x?: number, y?: number }, locale?: string | string[] | null, color?: string, fontSize?: number, fontWeight?: number | string, tilt?: number, wordsPerLine?: number, highlight?: unknown }} noteOptions
+ * @param {{ color: string, opacity: number, strokeWidth?: number, roughness?: number, fontSize?: number, fontFamily?: string | null }} baseStyle
  * @param {number} [seed]
  * @param {{ band?: { x: number, width: number } | null, gap?: number }} [layout]
  * @returns {{ group: SVGGElement, box: import('./geometry.js').Rect, position: string } | null}
@@ -112,10 +135,11 @@ export function renderAnnotation(
   svg,
   rect,
   noteOptions,
-  style,
+  baseStyle,
   seed = 1,
   layout = {},
 ) {
+  const style = resolveNoteStyle(baseStyle, noteOptions ?? {});
   // The text may be written in several languages; only one of them is drawn.
   const { text, locale } = resolveLocalizedText(
     noteOptions?.text,
@@ -133,9 +157,13 @@ export function renderAnnotation(
   const note = createNoteText(svg, text, style, {
     wordsPerLine: noteOptions.wordsPerLine,
     locale,
+    highlight: noteOptions.highlight,
   });
 
-  const tilt = (random() - 0.45) * 7;
+  // Drawn whether or not a tilt was asked for, so the rest of the layout (gap)
+  // lands in the same place either way
+  const randomTilt = (random() - 0.45) * 7;
+  const tilt = Number.isFinite(noteOptions.tilt) ? noteOptions.tilt : randomTilt;
   // A tilted box needs a little more vertical room than its upright glyph box
   const tiltPad = Math.abs(Math.sin((tilt * Math.PI) / 180)) * note.width * 0.5;
   const size = {

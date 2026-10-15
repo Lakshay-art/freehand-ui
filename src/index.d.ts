@@ -28,7 +28,25 @@ export type DecorationType =
  */
 export type LocalizedText = string | Record<string, string>;
 
+/**
+ * Words of a note drawn in a colour (and weight) of their own. Every
+ * occurrence of `text` in the note is painted, including one that wraps onto
+ * the next line. Where two highlights overlap, the earlier one wins.
+ */
+export interface NoteHighlight {
+  /** The words to find, exactly as written in the note. */
+  text: string;
+  /** Any CSS colour. Omit to keep the note's own colour. */
+  color?: string;
+  /** e.g. `700`. Omit to keep the note's own weight. */
+  fontWeight?: number | string;
+}
+
 export interface NoteOptions {
+  /**
+   * What the note says. A line break (`\n`) starts a new line; see
+   * `wordsPerLine` for how the rest is wrapped.
+   */
   text: LocalizedText;
   /**
    * Which side of the element the note sits on. Always honoured - a note that
@@ -49,6 +67,27 @@ export interface NoteOptions {
    * visitor's own languages. Only meaningful when `text` is a map.
    */
   locale?: string | string[] | null;
+  /**
+   * Colour of the handwriting and its underline. Defaults to the doodle's own
+   * `color`.
+   */
+  color?: string;
+  /** Size of the handwriting, px. Default `19`. */
+  fontSize?: number;
+  /** Weight of the handwriting. Default `600`. */
+  fontWeight?: number | string;
+  /**
+   * Rotate the note by exactly this many degrees (negative leans it up to the
+   * right). Omit for a small random tilt, different for each note.
+   */
+  tilt?: number;
+  /**
+   * Words per line. Default `2`. Use `0` to break only where the text has a
+   * line break (`\n`).
+   */
+  wordsPerLine?: number;
+  /** Paint some of the words in another colour, e.g. `{ text: "Game Mode!", color: "#ffc83d" }`. */
+  highlight?: NoteHighlight | NoteHighlight[];
 }
 
 export interface ArrowAnimationOptions {
@@ -85,6 +124,14 @@ export interface ArrowOptions {
   /** `"edge"` lands just outside the frame; `"center"` points into it. */
   to?: DoodlePosition | "edge";
   style?: "curved" | "straight" | "dotted" | "looped";
+  /** Colour of the arrow. Defaults to the doodle's own `color`. */
+  color?: string;
+  /** Thickness of the arrow's line, px. Defaults to the doodle's `strokeWidth`. */
+  strokeWidth?: number;
+  /** How shaky the pen is. Defaults to the doodle's `roughness`. */
+  roughness?: number;
+  /** `0`-`1`. Defaults to the doodle's `opacity`. */
+  opacity?: number;
   /**
    * Motion for the arrow. On by default - the shaft draws itself on and the
    * whole mark leans toward its target. `false` draws it static. Respects

@@ -21,7 +21,7 @@ Wrap any existing web element with a beautiful, responsive, hand-drawn doodle la
 
 **Live on [Aznabee.com](https://aznabee.com)** - see it in production on the real product.
 
-## ![Basic hand-drawn border around a card](docs/images/basic.png)
+![Basic hand-drawn border around a card](docs/images/basic.png)
 
 ## Install
 
@@ -121,6 +121,32 @@ doodle(".cta", {
 
 Notes are measured from real glyph metrics and laid out so they never sit on top of the element. The underline is drawn to the measured text width; set `underline: false` for plain handwriting.
 
+#### Styling a note
+
+A note writes in the doodle's `color` by default. Give it its own look, and paint chosen words in another colour:
+
+```javascript
+doodle(".cta", {
+  border: false,
+  note: {
+    text: "Start chat\nin Game Mode!",
+    position: "right",
+    color: "#ffffff", // the handwriting and its underline
+    fontSize: 25, // px, default 19
+    fontWeight: 600, // default 600
+    tilt: -11, // degrees, exactly; omit for a small random tilt
+    wordsPerLine: 0, // break only at \n (default 2 words per line)
+    underline: false,
+    highlight: { text: "Game Mode!", color: "#ffc83d", fontWeight: 700 },
+  },
+});
+```
+
+- **`highlight`** takes one entry or a list (`{ text, color?, fontWeight? }`; a bare string only finds the words). Every occurrence is painted, and a phrase that wraps onto the next line keeps its colour. Where two entries overlap, the earlier one wins. Words that are not in the note are ignored.
+- **`\n`** in `text` starts a new line. `wordsPerLine` wraps the rest: `2` by default, `0` to break only at `\n`.
+- **`tilt`** pins the rotation. Without it each note gets a small random tilt, as before.
+- For a note in several languages, list the words for each language as separate highlights; only the ones that occur in the language drawn are painted.
+
 ### Notes in the visitor's language
 
 Write the note once per language and it is drawn in the one the visitor reads - taken from `navigator.languages`, which is what their operating system is set to. No configuration, no i18n library.
@@ -219,6 +245,23 @@ doodle(".cta", {
 ```
 
 **`to`:** `"edge"` (default) lands the tip just outside the frame; `"center"` points into the element.
+
+**The arrow's pen.** It draws in the doodle's `color`, `strokeWidth`, `roughness` and `opacity`; each can be set for the arrow alone:
+
+```javascript
+doodle(".cta", {
+  color: "#ffffff",
+  note: { text: "start chat", position: "right" },
+  arrow: {
+    color: "#ff4fa3", // any CSS colour
+    strokeWidth: 3.4, // line thickness, px
+    roughness: 1, // how shaky the pen is
+    opacity: 1,
+  },
+});
+```
+
+A setting that cannot be used (a negative width, an empty colour) is ignored and the doodle's own is kept.
 
 ### Arrow animation
 
@@ -493,6 +536,12 @@ Then open:
 
 ---
 
+## Contributing
+
+Contributions are welcome - see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Release notes live in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
 ## License
 
-MIT
+[MIT](LICENSE)

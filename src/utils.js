@@ -98,6 +98,12 @@ export function mergeOptions(options = {}) {
       // `animate: false` opts out, an object tunes speed and gestures
       animate: normalizeArrowAnimation(config.animate),
     };
+
+    // The arrow's own pen. Left off unless set, so an arrow without them keeps
+    // drawing in the doodle's colour and thickness
+    for (const key of ["color", "strokeWidth", "roughness", "opacity"]) {
+      if (config[key] !== undefined) merged.arrow[key] = config[key];
+    }
   }
 
   if (merged.decorations === true) {

@@ -172,3 +172,43 @@ test(
     assert.ok(cjs.includes("import_react_native_svg.Svg"));
   },
 );
+
+test("a native note carries its colours, highlights and the arrow's own pen", () => {
+  const { root } = buildDoodle({
+    width: 120,
+    height: 50,
+    seed: 5,
+    options: {
+      border: false,
+      note: {
+        text: "Start chat\nin Game Mode!",
+        position: "right",
+        color: "#ffffff",
+        fontSize: 25,
+        tilt: -11,
+        wordsPerLine: 0,
+        underline: false,
+        highlight: { text: "Game Mode!", color: "#ffc83d", fontWeight: 700 },
+      },
+      arrow: { from: "note", to: "edge", animate: false, color: "#ff4fa3", strokeWidth: 3.4 },
+    },
+  });
+
+  const nodes = [...walk(root)];
+  const text = nodes.find((n) => n.tagName === "text");
+  assert.equal(text.getAttribute("font-size"), "25");
+  assert.equal(text.getAttribute("fill"), "#ffffff");
+
+  // The highlighted line is made of runs, and the painted one says so
+  const painted = nodes.filter((n) => n.tagName === "tspan" && n.getAttribute("fill") === "#ffc83d");
+  assert.equal(painted.length, 1);
+  assert.equal(painted[0].textContent, "Game Mode!");
+  assert.equal(painted[0].getAttribute("font-weight"), "700");
+  assert.equal(painted[0].parentNode.textContent, "in Game Mode!");
+
+  // The arrow is drawn in its own colour and thickness
+  const strokes = nodes.filter((n) => n.tagName === "path");
+  assert.ok(strokes.length > 0);
+  assert.ok(strokes.every((n) => n.getAttribute("stroke") === "#ff4fa3"));
+  assert.ok(strokes.some((n) => n.getAttribute("stroke-width") === "3.4"));
+});

@@ -75,22 +75,47 @@ export function detectBorderRadius(element) {
 }
 
 /**
+ * How much an ancestor's `transform: scale()` (or zoom) has shrunk or grown the
+ * element on screen: its on-screen width over its layout width. `1` when nothing
+ * scales it, or when it has no layout width to compare.
+ *
+ * Everything the overlay draws is in the element's own, unscaled CSS pixels - the
+ * ancestor's transform then scales the overlay along with the element. Measuring
+ * in screen pixels instead would scale it twice.
+ *
  * @param {Element} element
- * @param {number} padding
+ * @returns {number}
+ */
+export function screenScaleOf(element) {
+  const layoutWidth = /** @type {HTMLElement} */ (element).offsetWidth;
+  if (!layoutWidth) return 1;
+  const scale = element.getBoundingClientRect().width / layoutWidth;
+  return Number.isFinite(scale) && scale > 0.01 ? scale : 1;
+}
+
+/**
+ * @param {Element} element
+ * @param {number} padding in the element's own CSS px
  * @param {number | null} radiusOverride
+ * @param {number} [scale] see `screenScaleOf`; the box comes back in screen px / scale
  * @returns {Rect}
  */
-export function getElementBounds(element, padding = 0, radiusOverride = null) {
+export function getElementBounds(
+  element,
+  padding = 0,
+  radiusOverride = null,
+  scale = 1,
+) {
   const rect = element.getBoundingClientRect();
   const radius =
     radiusOverride != null ? radiusOverride : detectBorderRadius(element);
 
-  const width = rect.width + padding * 2;
-  const height = rect.height + padding * 2;
+  const width = rect.width / scale + padding * 2;
+  const height = rect.height / scale + padding * 2;
 
   return {
-    x: rect.left - padding,
-    y: rect.top - padding,
+    x: rect.left / scale - padding,
+    y: rect.top / scale - padding,
     width,
     height,
     // Grow the radius with the padding so the doodle stays concentric with the

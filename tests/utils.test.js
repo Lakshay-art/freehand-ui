@@ -261,3 +261,35 @@ test("removeOverlaySvg leaves an existing position alone", () => {
 
   assert.equal(element.style.position, "relative");
 });
+
+// ───────────────────────── under an ancestor's transform: scale() ─────────────────────────
+
+import { getElementBounds, screenScaleOf } from "../src/geometry.js";
+
+/** An element whose layout box is 200x60 but that is painted at `scale` of that, with its corner at (40, 100). */
+function scaledElement(scale) {
+  return {
+    offsetWidth: 200,
+    getBoundingClientRect: () => ({ left: 40, top: 100, width: 200 * scale, height: 60 * scale }),
+  };
+}
+
+test("an element's on-screen scale is read off its layout and painted widths", () => {
+  assert.equal(screenScaleOf(scaledElement(1)), 1);
+  assert.equal(screenScaleOf(scaledElement(0.9)), 0.9);
+  // nothing to compare against: treated as unscaled
+  assert.equal(screenScaleOf({ offsetWidth: 0, getBoundingClientRect: () => ({ width: 50 }) }), 1);
+  assert.equal(screenScaleOf({ getBoundingClientRect: () => ({ width: 50 }) }), 1);
+});
+
+test("bounds under a scaled ancestor come back in the element's own unscaled px", () => {
+  const el = { ...scaledElement(0.9), children: [] };
+  // the radius is given, so no styles are needed
+  const b = getElementBounds(el, 0, 10, 0.9);
+  assert.ok(Math.abs(b.width - 200) < 1e-9, `width ${b.width}`);
+  assert.ok(Math.abs(b.height - 60) < 1e-9, `height ${b.height}`);
+
+  // padding is in the element's own px as well, and does not scale again
+  const padded = getElementBounds(el, -18, 10, 0.9);
+  assert.ok(Math.abs(padded.width - (200 - 36)) < 1e-9);
+});

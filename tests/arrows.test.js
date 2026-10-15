@@ -299,3 +299,72 @@ test("an unanimated arrow is left as plain paths", () => {
   }
 });
 
+
+// ───────────────────────── the arrow's own pen ─────────────────────────
+
+import { resolveArrowStyle } from "../src/renderer.js";
+
+const BASE_PEN = { color: "#fff", strokeWidth: 1.5, roughness: 1.5, opacity: 0.9 };
+
+test("an arrow keeps the doodle's pen unless it sets its own", () => {
+  assert.deepEqual(resolveArrowStyle(BASE_PEN, {}), BASE_PEN);
+  assert.deepEqual(resolveArrowStyle(BASE_PEN), BASE_PEN);
+
+  assert.deepEqual(
+    resolveArrowStyle(BASE_PEN, { color: "#ff4fa3", strokeWidth: 3.4, roughness: 0.5, opacity: 1 }),
+    { color: "#ff4fa3", strokeWidth: 3.4, roughness: 0.5, opacity: 1 },
+  );
+
+  // one setting does not disturb the others
+  assert.deepEqual(resolveArrowStyle(BASE_PEN, { strokeWidth: 4 }), { ...BASE_PEN, strokeWidth: 4 });
+});
+
+test("an arrow's unusable pen settings are ignored", () => {
+  assert.deepEqual(
+    resolveArrowStyle(BASE_PEN, { color: " ", strokeWidth: 0, roughness: -1, opacity: NaN }),
+    BASE_PEN,
+  );
+  assert.equal(resolveArrowStyle(BASE_PEN, { opacity: 7 }).opacity, 1);
+  assert.equal(resolveArrowStyle(BASE_PEN, { opacity: -2 }).opacity, 0);
+});
+
+test("the drawn arrow uses its own colour and thickness, head included", () => {
+  const made = [];
+  globalThis.document = {
+    createElementNS: (_ns, tag) => {
+      const el = {
+        tag,
+        attrs: {},
+        children: [],
+        style: {},
+        setAttribute(n, v) {
+          this.attrs[n] = String(v);
+        },
+        appendChild(c) {
+          this.children.push(c);
+          return c;
+        },
+        getTotalLength: () => 100,
+      };
+      made.push(el);
+      return el;
+    },
+  };
+  const svg = { appendChild() {} };
+
+  drawArrow(
+    svg,
+    { x: 100, y: 100, width: 80, height: 40, radius: 8 },
+    { from: "right", to: "edge", style: "curved", animate: false, color: "#ff4fa3", strokeWidth: 3.4 },
+    BASE_PEN,
+    1,
+    { x: 300, y: 80, width: 100, height: 30 },
+  );
+
+  const paths = made.filter((e) => e.tag === "path");
+  assert.ok(paths.length >= 2, "a shaft and a head at least");
+  assert.ok(paths.every((p) => p.attrs.stroke === "#ff4fa3"), "every stroke in the arrow's colour");
+  // the shaft is the thickness asked for (a faint ghost pass may be thinner)
+  assert.ok(paths.some((p) => p.attrs["stroke-width"] === "3.4"));
+  assert.ok(paths.every((p) => Number(p.attrs["stroke-width"]) > 1.5), "none left at the doodle's 1.5");
+});

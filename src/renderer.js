@@ -883,6 +883,30 @@ function boundsOf(points) {
 }
 
 /**
+ * The arrow's own pen: the doodle's colour, thickness, roughness and opacity,
+ * unless the arrow sets its own. Anything unusable (a negative width, a
+ * non-colour) is ignored rather than drawn.
+ * @param {{ color: string, strokeWidth: number, roughness: number, opacity: number }} base
+ * @param {{ color?: unknown, strokeWidth?: unknown, roughness?: unknown, opacity?: unknown }} [options]
+ */
+export function resolveArrowStyle(base, options = {}) {
+  const style = { ...base };
+  if (typeof options.color === "string" && options.color.trim()) {
+    style.color = options.color;
+  }
+  if (Number.isFinite(options.strokeWidth) && options.strokeWidth > 0) {
+    style.strokeWidth = options.strokeWidth;
+  }
+  if (Number.isFinite(options.roughness) && options.roughness >= 0) {
+    style.roughness = options.roughness;
+  }
+  if (Number.isFinite(options.opacity)) {
+    style.opacity = Math.min(1, Math.max(0, options.opacity));
+  }
+  return style;
+}
+
+/**
  * Sweeping hand-drawn arrow (reference-style curved callout).
  * @param {SVGElement} svg
  * @param {import('./geometry.js').Rect} rect
@@ -897,11 +921,12 @@ export function drawArrow(
   svg,
   rect,
   arrowOptions,
-  style,
+  baseStyle,
   seed,
   origin = null,
   context = {},
 ) {
+  const style = resolveArrowStyle(baseStyle, arrowOptions);
   const random = createRandom(seed + 17);
   const { start, end } = arrowEndpoints(rect, arrowOptions, random, origin);
 
@@ -1077,15 +1102,29 @@ const DEFAULT_WORDS_PER_LINE = 2;
 /**
  * Split a note into lines of at most `perLine` words. Explicit newlines are
  * honoured first. A non-positive or non-finite limit keeps each paragraph whole.
+ * Each line comes with its highlight marks (see `highlightMarks`).
  * @param {string} text
  * @param {number} perLine
- * @returns {string[]}
+ * @param {Int16Array | null} [marks]
+ * @returns {{ text: string, marks: number[] }[]}
  */
-function wrapWords(text, perLine) {
+function wrapWords(text, perLine, marks = null) {
+  const source = String(text);
   const lines = [];
+  // Where in `source` the paragraph being read starts, so every word can be
+  // traced back to its characters - that is how a highlight survives a wrap
+  let cursor = 0;
 
-  for (const paragraph of String(text).split(/\r?\n/)) {
-    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+  for (const [index, paragraph] of source.split(/(\r?\n)/).entries()) {
+    const start = cursor;
+    cursor += paragraph.length;
+    // Odd entries are the line breaks themselves
+    if (index % 2 === 1) continue;
+
+    const words = [...paragraph.matchAll(/\S+/g)].map((m) => ({
+      text: m[0],
+      at: start + m.index,
+    }));
     if (!words.length) continue;
 
     const size =
@@ -1094,19 +1133,100 @@ function wrapWords(text, perLine) {
         : words.length;
 
     for (let i = 0; i < words.length; i += size) {
-      lines.push(words.slice(i, i + size).join(" "));
+      lines.push(lineOf(words.slice(i, i + size), marks));
     }
   }
 
-  return lines.length ? lines : [String(text)];
+  return lines.length ? lines : [lineOf([{ text: source, at: 0 }], marks)];
 }
 
 /**
- * @param {SVGTextContentElement} element
- * @param {string} content
- * @param {number} fontSize
- * @returns {number}
+ * One wrapped line and, per character, which highlight (if any) it belongs to.
+ * A space between two words belongs to a highlight only when both neighbours do,
+ * so "Game Mode!" is one unbroken coloured run.
+ * @param {{ text: string, at: number }[]} words
+ * @param {Int16Array | null} marks
+ * @returns {{ text: string, marks: number[] }}
  */
+function lineOf(words, marks) {
+  const text = words.map((w) => w.text).join(" ");
+  const result = [];
+  let previous = -1;
+
+  words.forEach((word, index) => {
+    const first = marks ? (marks[word.at] ?? -1) : -1;
+    if (index > 0) result.push(previous === first ? first : -1);
+
+    for (let k = 0; k < word.text.length; k++) {
+      result.push(marks ? (marks[word.at + k] ?? -1) : -1);
+    }
+    previous = marks ? (marks[word.at + word.text.length - 1] ?? -1) : -1;
+  });
+
+  return { text, marks: result };
+}
+
+/**
+ * Highlights as a list of `{ text, color?, fontWeight? }`, whatever form they
+ * were written in. Entries with nothing to find are dropped.
+ * @param {unknown} highlight
+ * @returns {{ text: string, color?: string, fontWeight?: string | number }[]}
+ */
+export function normalizeHighlights(highlight) {
+  const list = Array.isArray(highlight) ? highlight : highlight ? [highlight] : [];
+  return list
+    .map((entry) => (typeof entry === "string" ? { text: entry } : entry))
+    .filter((entry) => entry && typeof entry.text === "string" && entry.text);
+}
+
+/**
+ * For every character of `text`, the index of the highlight painting it, or -1.
+ * Every occurrence is painted; where two highlights overlap, the earlier entry
+ * in the list wins.
+ * @param {string} text
+ * @param {{ text: string }[]} highlights
+ * @returns {Int16Array | null} `null` when there is nothing to paint
+ */
+export function highlightMarks(text, highlights) {
+  if (!highlights.length) return null;
+
+  const marks = new Int16Array(text.length).fill(-1);
+  let any = false;
+
+  highlights.forEach((highlight, index) => {
+    for (
+      let at = text.indexOf(highlight.text);
+      at !== -1;
+      at = text.indexOf(highlight.text, at + highlight.text.length)
+    ) {
+      for (let k = at; k < at + highlight.text.length; k++) {
+        if (marks[k] === -1) {
+          marks[k] = index;
+          any = true;
+        }
+      }
+    }
+  });
+
+  return any ? marks : null;
+}
+
+/**
+ * A line cut into runs of one highlight each.
+ * @param {{ text: string, marks: number[] }} line
+ * @returns {{ text: string, highlight: number }[]}
+ */
+function segmentsOf(line) {
+  const segments = [];
+  for (let i = 0; i < line.text.length; i++) {
+    const highlight = line.marks[i] ?? -1;
+    const last = segments[segments.length - 1];
+    if (last && last.highlight === highlight) last.text += line.text[i];
+    else segments.push({ text: line.text[i], highlight });
+  }
+  return segments;
+}
+
 function measureWidth(element, content, fontSize) {
   try {
     const box = element.getBBox();
@@ -1136,7 +1256,13 @@ function measureWidth(element, content, fontSize) {
  */
 export function createNoteText(svg, text, style, options = {}) {
   const fontSize = style.fontSize ?? NOTE_FONT_SIZE;
-  const lines = wrapWords(text, options.wordsPerLine ?? DEFAULT_WORDS_PER_LINE);
+  const highlights = normalizeHighlights(options.highlight);
+  const wrapped = wrapWords(
+    text,
+    options.wordsPerLine ?? DEFAULT_WORDS_PER_LINE,
+    highlightMarks(String(text), highlights),
+  );
+  const lines = wrapped.map((line) => line.text);
   const lineHeight = fontSize * 1.05;
 
   // Which way the note runs is read off the text itself, by the first strong
@@ -1153,7 +1279,7 @@ export function createNoteText(svg, text, style, options = {}) {
   textEl.setAttribute("opacity", String(style.opacity));
   textEl.setAttribute("font-size", String(fontSize));
   textEl.setAttribute("font-family", style.fontFamily || HANDWRITTEN_FONT);
-  textEl.setAttribute("font-weight", "600");
+  textEl.setAttribute("font-weight", String(style.fontWeight ?? "600"));
   textEl.setAttribute("letter-spacing", "0.4");
   // `start` is the edge the reader starts at, not the left one: under
   // `direction: rtl` it is the right edge of the line. Anchoring there and
@@ -1175,11 +1301,30 @@ export function createNoteText(svg, text, style, options = {}) {
     textEl.setAttributeNS(XML_NS, "xml:lang", options.locale);
   }
 
-  const tspans = lines.map((line, index) => {
+  const tspans = wrapped.map((line, index) => {
     const tspan = createSvgElement("tspan");
-    tspan.textContent = line;
     tspan.setAttribute("x", "0");
     tspan.setAttribute("dy", index === 0 ? "0" : String(lineHeight));
+
+    const segments = segmentsOf(line);
+    if (segments.every((segment) => segment.highlight === -1)) {
+      tspan.textContent = line.text;
+    } else {
+      // A line that carries a highlight is built from runs, each in its own
+      // colour. Plain runs inherit the note's own, so only the painted ones
+      // say anything.
+      for (const segment of segments) {
+        const run = createSvgElement("tspan");
+        run.textContent = segment.text;
+        const highlight = highlights[segment.highlight];
+        if (highlight?.color) run.setAttribute("fill", highlight.color);
+        if (highlight?.fontWeight != null) {
+          run.setAttribute("font-weight", String(highlight.fontWeight));
+        }
+        tspan.appendChild(run);
+      }
+    }
+
     textEl.appendChild(tspan);
     return tspan;
   });

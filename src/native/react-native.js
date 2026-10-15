@@ -91,7 +91,17 @@ function blurOf(node) {
 function renderNode(node, key, context) {
   const props = { key, ...propsOf(node) };
 
-  if (node.tagName === "tspan") return h(TSpan, props, node.textContent);
+  if (node.tagName === "tspan") {
+    // A line carrying a highlight is made of coloured runs, each its own tspan
+    if (node.children.length) {
+      return h(
+        TSpan,
+        props,
+        ...node.children.map((child, index) => renderNode(child, index, context)),
+      );
+    }
+    return h(TSpan, props, node.textContent);
+  }
 
   // A glow is a CSS-blurred disc on the web; native svg has no CSS filters,
   // so the same softness comes from a radial fade out to the blurred edge

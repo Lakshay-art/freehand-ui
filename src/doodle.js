@@ -7,7 +7,7 @@ import {
   removeOverlaySvg,
   syncOverlayStacking,
 } from "./utils.js";
-import { getElementBounds, relativeRect } from "./geometry.js";
+import { getElementBounds, relativeRect, screenScaleOf } from "./geometry.js";
 import {
   clearSvg,
   createOverlaySvg,
@@ -42,16 +42,18 @@ function now() {
  * that and crawl the note away from the element. Viewport width is a real,
  * screen-relative constraint worth clamping to; viewport height is not.
  *
- * @param {number} originLeft viewport x the overlay's local x=0 sits at
+ * @param {number} originLeft viewport x (unscaled px) the overlay's local x=0 sits at
  * @param {number} [inset]
  * @returns {{ x: number, width: number }}
  */
-function localBand(originLeft, inset = 8) {
+function localBand(originLeft, inset = 8, scale = 1) {
   const width = window.innerWidth || document.documentElement.clientWidth || 0;
 
+  // `originLeft` is in unscaled px, like local coordinates; the window's edges
+  // are screen px, so `scale` converts them
   return {
-    x: -originLeft + inset,
-    width: Math.max(0, width - inset * 2),
+    x: -originLeft + inset / scale,
+    width: Math.max(0, width - inset * 2) / scale,
   };
 }
 
@@ -61,10 +63,13 @@ function localBand(originLeft, inset = 8) {
  * covers, so it is both where the overlay's own box goes and the origin its
  * drawing coordinates are measured from.
  *
+ * Measured in the element's own unscaled px (see `screenScaleOf`).
+ *
  * @param {Element} element
+ * @param {number} [scale]
  * @returns {{ left: number, top: number, width: number, height: number }}
  */
-function paddingBox(element) {
+function paddingBox(element, scale = 1) {
   const rect = element.getBoundingClientRect();
   const style = getComputedStyle(element);
   const left = parseFloat(style.borderLeftWidth) || 0;
@@ -73,10 +78,10 @@ function paddingBox(element) {
   const bottom = parseFloat(style.borderBottomWidth) || 0;
 
   return {
-    left: rect.left + left,
-    top: rect.top + top,
-    width: Math.max(0, rect.width - left - right),
-    height: Math.max(0, rect.height - top - bottom),
+    left: rect.left / scale + left,
+    top: rect.top / scale + top,
+    width: Math.max(0, rect.width / scale - left - right),
+    height: Math.max(0, rect.height / scale - top - bottom),
   };
 }
 
@@ -210,8 +215,11 @@ class DoodleOverlay {
     // overlay's age and pick up where the last pass left off
     const elapsed = now() - this.startedAt;
 
+    // An ancestor's transform: scale() scales the overlay along with the element,
+    // so everything is measured and drawn in unscaled px, not screen px
+    const scale = screenScaleOf(this.element);
     const absoluteRects = targets.map((target) =>
-      getElementBounds(target, padding, radius)
+      getElementBounds(target, padding, radius, scale)
     );
 
     clearSvg(this.svg);
@@ -223,7 +231,7 @@ class DoodleOverlay {
     // area, so a box inflated to enclose a note would put a scrollbar on the
     // page. Whatever is drawn beyond the box is ink overflow instead, which
     // paints (thanks to `overflow: visible`) without affecting layout.
-    const box = paddingBox(this.element);
+    const box = paddingBox(this.element, scale);
     // A zero width or height would switch the svg off entirely.
     const width = Math.max(1, box.width);
     const height = Math.max(1, box.height);
@@ -250,7 +258,7 @@ class DoodleOverlay {
     const noteGroups = [];
     // A connected note is pushed further out so its arrow has room to sweep
     const noteLayout = {
-      band: localBand(origin.x),
+      band: localBand(origin.x, 8, scale),
       gap: this.options.arrow ? 40 : 14,
     };
 
